@@ -3,6 +3,7 @@ import { apiFetch } from "./api";
 import AceptarInvitacion from "./components/AceptarInvitacion";
 import EmpresasPanel from "./components/EmpresasPanel";
 import EquipoPanel from "./components/EquipoPanel";
+import InicioPanel from "./components/InicioPanel";
 import ObrasPanel from "./components/ObrasPanel";
 
 function ConstructionArt() {
@@ -172,7 +173,7 @@ function AppShell({ user, onLogout }) {
       return [{ key: "empresas", label: "Empresas", render: () => <EmpresasPanel /> }];
     }
 
-    const list = [];
+    const list = [{ key: "inicio", label: "Inicio", render: () => <InicioPanel currentUser={user} /> }];
     if (user.vistas?.includes("obras")) {
       list.push({ key: "obras", label: "Obras", render: () => <ObrasPanel /> });
     }

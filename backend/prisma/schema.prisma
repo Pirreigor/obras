@@ -280,7 +280,9 @@ model Avance {
   subObra               SubObra              @relation(fields: [subObraId], references: [id], onDelete: Cascade)
   actividadProgramadaId Int?
   actividadProgramada   ActividadProgramada? @relation(fields: [actividadProgramadaId], references: [id], onDelete: SetNull)
-  titulo                String
+  // dia del calendario que representa este avance (puede no ser "hoy").
+  fecha                 DateTime
+  titulo                String?
   descripcion           String?
   porcentaje            Int                  @default(0)
   imagenes              String[]             @default([])
