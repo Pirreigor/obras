@@ -1,0 +1,69 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Rol {
+  ADMINISTRADOR
+  SUPERVISOR
+}
+
+enum EstadoProyecto {
+  PLANIFICACION
+  EN_PROGRESO
+  PAUSADO
+  FINALIZADO
+  CANCELADO
+}
+
+model Usuario {
+  id            Int        @id @default(autoincrement())
+  name          String
+  email         String     @unique
+  passwordHash  String
+  rol           Rol        @default(SUPERVISOR)
+  proyectos     Proyecto[] @relation("ProyectoResponsable")
+  avancesCreados Avance[]  @relation("AvanceCreadoPor")
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+
+  @@map("usuarios")
+}
+
+model Proyecto {
+  id                Int            @id @default(autoincrement())
+  nombre            String
+  descripcion       String?
+  cliente           String?
+  ubicacion         String?
+  estado            EstadoProyecto @default(PLANIFICACION)
+  presupuesto       Float?
+  fechaInicio       DateTime?
+  fechaFinEstimada  DateTime?
+  responsableId     Int?
+  responsable       Usuario?       @relation("ProyectoResponsable", fields: [responsableId], references: [id], onDelete: SetNull)
+  avances           Avance[]
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
+
+  @@map("proyectos")
+}
+
+model Avance {
+  id           Int      @id @default(autoincrement())
+  proyectoId   Int
+  proyecto     Proyecto @relation(fields: [proyectoId], references: [id], onDelete: Cascade)
+  titulo       String
+  descripcion  String?
+  porcentaje   Int      @default(0)
+  imagenes     String[] @default([])
+  creadoPorId  Int?
+  creadoPor    Usuario? @relation("AvanceCreadoPor", fields: [creadoPorId], references: [id], onDelete: SetNull)
+  createdAt    DateTime @default(now())
+
+  @@map("avances")
+}
