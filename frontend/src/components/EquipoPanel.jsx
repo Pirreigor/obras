@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { apiFetch } from "../api";
+import Modal from "./Modal";
 
 const ROLES = ["ADMINISTRADOR", "SUPERVISOR", "RESIDENTE", "CALIDAD_PRODUCCION"];
 const FORM_INICIAL = { email: "", rol: "RESIDENTE" };
@@ -16,6 +17,7 @@ function EquipoPanel({ currentUser }) {
   const [form, setForm] = useState(FORM_INICIAL);
   const [submitting, setSubmitting] = useState(false);
   const [lastInviteLink, setLastInviteLink] = useState("");
+  const [mostrarModalInvitar, setMostrarModalInvitar] = useState(false);
 
   const [vistasUsuarioId, setVistasUsuarioId] = useState(null);
   const [vistasAsignadas, setVistasAsignadas] = useState([]);
@@ -48,6 +50,13 @@ function EquipoPanel({ currentUser }) {
   useEffect(() => {
     load();
   }, []);
+
+  function handleOpenModalInvitar() {
+    setForm(FORM_INICIAL);
+    setInviteError("");
+    setLastInviteLink("");
+    setMostrarModalInvitar(true);
+  }
 
   async function handleInvite(e) {
     e.preventDefault();
@@ -126,9 +135,14 @@ function EquipoPanel({ currentUser }) {
   const usuarioSeleccionado = usuarios.find((u) => u.id === vistasUsuarioId);
 
   return (
-    <div className="panel-grid">
+    <>
       <section className="panel-card">
-        <h2>Equipo</h2>
+        <div className="panel-card-header">
+          <h2>Equipo</h2>
+          <button className="btn-small" type="button" onClick={handleOpenModalInvitar}>
+            + Invitar
+          </button>
+        </div>
         {listError && <div className="form-error">{listError}</div>}
         {loading ? (
           <p className="muted">Cargando...</p>
@@ -238,45 +252,46 @@ function EquipoPanel({ currentUser }) {
         )}
       </section>
 
-      <section className="panel-card">
-        <h2>Invitar a alguien</h2>
-        <p className="muted">
-          Todavia no se envia el correo automaticamente: copia el enlace y compartilo vos mientras tanto.
-        </p>
-        {inviteError && <div className="form-error">{inviteError}</div>}
-        <form className="stacked-form" onSubmit={handleInvite}>
-          <div className="field">
-            <label htmlFor="inviteEmail">Email</label>
-            <input
-              id="inviteEmail"
-              type="email"
-              value={form.email}
-              onChange={(e) => setForm({ ...form, email: e.target.value })}
-              required
-            />
-          </div>
-          <div className="field">
-            <label htmlFor="inviteRol">Rol</label>
-            <select id="inviteRol" value={form.rol} onChange={(e) => setForm({ ...form, rol: e.target.value })}>
-              {ROLES.map((rol) => (
-                <option key={rol} value={rol}>
-                  {rol}
-                </option>
-              ))}
-            </select>
-          </div>
-          <button className="btn-primary" type="submit" disabled={submitting}>
-            {submitting ? "Generando..." : "Generar invitacion"}
-          </button>
-        </form>
-        {lastInviteLink && (
-          <div className="invite-link-box">
-            <p className="muted">Enlace de invitacion:</p>
-            <code>{lastInviteLink}</code>
-          </div>
-        )}
-      </section>
-    </div>
+      {mostrarModalInvitar && (
+        <Modal title="Invitar a alguien" onClose={() => setMostrarModalInvitar(false)}>
+          <p className="muted">
+            Todavia no se envia el correo automaticamente: copia el enlace y compartilo vos mientras tanto.
+          </p>
+          {inviteError && <div className="form-error">{inviteError}</div>}
+          <form className="stacked-form" onSubmit={handleInvite}>
+            <div className="field">
+              <label htmlFor="inviteEmail">Email</label>
+              <input
+                id="inviteEmail"
+                type="email"
+                value={form.email}
+                onChange={(e) => setForm({ ...form, email: e.target.value })}
+                required
+              />
+            </div>
+            <div className="field">
+              <label htmlFor="inviteRol">Rol</label>
+              <select id="inviteRol" value={form.rol} onChange={(e) => setForm({ ...form, rol: e.target.value })}>
+                {ROLES.map((rol) => (
+                  <option key={rol} value={rol}>
+                    {rol}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <button className="btn-primary" type="submit" disabled={submitting}>
+              {submitting ? "Generando..." : "Generar invitacion"}
+            </button>
+          </form>
+          {lastInviteLink && (
+            <div className="invite-link-box">
+              <p className="muted">Enlace de invitacion:</p>
+              <code>{lastInviteLink}</code>
+            </div>
+          )}
+        </Modal>
+      )}
+    </>
   );
 }
 

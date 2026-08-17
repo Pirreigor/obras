@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { apiFetch } from "../api";
+import Modal from "./Modal";
 
 const NUEVA = "__nueva__";
 const FORM_INICIAL = {
@@ -27,6 +28,7 @@ function ObrasPanel() {
   const [formError, setFormError] = useState("");
   const [form, setForm] = useState(FORM_INICIAL);
   const [submitting, setSubmitting] = useState(false);
+  const [mostrarModalObra, setMostrarModalObra] = useState(false);
 
   const [obraSeleccionadaId, setObraSeleccionadaId] = useState(null);
   const [subObras, setSubObras] = useState([]);
@@ -34,6 +36,7 @@ function ObrasPanel() {
   const [subObraError, setSubObraError] = useState("");
   const [subObraForm, setSubObraForm] = useState(SUB_OBRA_FORM_INICIAL);
   const [submittingSubObra, setSubmittingSubObra] = useState(false);
+  const [mostrarModalSubObra, setMostrarModalSubObra] = useState(false);
 
   async function loadObras() {
     setLoading(true);
@@ -71,6 +74,12 @@ function ObrasPanel() {
     loadZonas();
     loadUsuarios();
   }, []);
+
+  function handleOpenModalObra() {
+    setForm(FORM_INICIAL);
+    setFormError("");
+    setMostrarModalObra(true);
+  }
 
   async function handleZonaChange(zonaId) {
     setForm({ ...form, zonaId, localidadId: "", localidadNombreNueva: "" });
@@ -134,6 +143,7 @@ function ObrasPanel() {
 
       setForm(FORM_INICIAL);
       setLocalidadesPorZona({});
+      setMostrarModalObra(false);
       await Promise.all([loadObras(), loadZonas()]);
     } catch (err) {
       setFormError(err.message);
@@ -149,7 +159,6 @@ function ObrasPanel() {
     }
 
     setObraSeleccionadaId(obra.id);
-    setSubObraForm(SUB_OBRA_FORM_INICIAL);
     setSubObraError("");
     setLoadingSubObras(true);
     try {
@@ -160,6 +169,12 @@ function ObrasPanel() {
     } finally {
       setLoadingSubObras(false);
     }
+  }
+
+  function handleOpenModalSubObra() {
+    setSubObraForm(SUB_OBRA_FORM_INICIAL);
+    setSubObraError("");
+    setMostrarModalSubObra(true);
   }
 
   function toggleResidente(usuarioId) {
@@ -187,6 +202,7 @@ function ObrasPanel() {
       });
       setSubObras((prev) => [data.subObra, ...prev]);
       setSubObraForm(SUB_OBRA_FORM_INICIAL);
+      setMostrarModalSubObra(false);
     } catch (err) {
       setSubObraError(err.message);
     } finally {
@@ -202,54 +218,98 @@ function ObrasPanel() {
 
   return (
     <>
-      <div className="panel-grid">
-        <section className="panel-card">
+      <section className="panel-card">
+        <div className="panel-card-header">
           <h2>Obras</h2>
-          {listError && <div className="form-error">{listError}</div>}
-          {loading ? (
+          <button className="btn-small" type="button" onClick={handleOpenModalObra}>
+            + Nueva obra
+          </button>
+        </div>
+        {listError && <div className="form-error">{listError}</div>}
+        {loading ? (
+          <p className="muted">Cargando...</p>
+        ) : obras.length === 0 ? (
+          <p className="muted">Todavia no hay obras.</p>
+        ) : (
+          <table className="data-table">
+            <thead>
+              <tr>
+                <th>Nombre</th>
+                <th>Cliente</th>
+                <th>Localidad</th>
+                <th>Estado</th>
+                <th>Presupuesto</th>
+              </tr>
+            </thead>
+            <tbody>
+              {obras.map((obra) => (
+                <tr
+                  key={obra.id}
+                  className={obra.id === obraSeleccionadaId ? "row-selected" : "row-clickable"}
+                  onClick={() => handleSelectObra(obra)}
+                >
+                  <td>{obra.nombre}</td>
+                  <td>{obra.cliente || "-"}</td>
+                  <td>
+                    {obra.localidad?.zona?.nombre} &middot; {obra.localidad?.nombre}
+                  </td>
+                  <td>
+                    <span className="role-pill">{obra.estado}</span>
+                  </td>
+                  <td>{obra.presupuesto != null ? Number(obra.presupuesto).toLocaleString() : "-"}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+        {!loading && obras.length > 0 && <p className="muted vista-block">Toca una obra para ver sus sub-obras.</p>}
+      </section>
+
+      {obraSeleccionada && (
+        <section className="panel-card vista-block">
+          <div className="panel-card-header">
+            <h2>Sub-obras de {obraSeleccionada.nombre}</h2>
+            <button className="btn-small" type="button" onClick={handleOpenModalSubObra}>
+              + Nueva sub-obra
+            </button>
+          </div>
+          {subObraError && !mostrarModalSubObra && <div className="form-error">{subObraError}</div>}
+          {loadingSubObras ? (
             <p className="muted">Cargando...</p>
-          ) : obras.length === 0 ? (
-            <p className="muted">Todavia no hay obras.</p>
+          ) : subObras.length === 0 ? (
+            <p className="muted">Todavia no hay sub-obras.</p>
           ) : (
             <table className="data-table">
               <thead>
                 <tr>
                   <th>Nombre</th>
-                  <th>Cliente</th>
-                  <th>Localidad</th>
                   <th>Estado</th>
-                  <th>Presupuesto</th>
+                  <th>Calidad/Produccion</th>
+                  <th>Residentes</th>
                 </tr>
               </thead>
               <tbody>
-                {obras.map((obra) => (
-                  <tr
-                    key={obra.id}
-                    className={obra.id === obraSeleccionadaId ? "row-selected" : "row-clickable"}
-                    onClick={() => handleSelectObra(obra)}
-                  >
-                    <td>{obra.nombre}</td>
-                    <td>{obra.cliente || "-"}</td>
+                {subObras.map((subObra) => (
+                  <tr key={subObra.id}>
+                    <td>{subObra.nombre}</td>
                     <td>
-                      {obra.localidad?.zona?.nombre} &middot; {obra.localidad?.nombre}
+                      <span className="role-pill">{subObra.estado}</span>
                     </td>
+                    <td>{subObra.responsableCalidad?.name || "-"}</td>
                     <td>
-                      <span className="role-pill">{obra.estado}</span>
+                      {subObra.residentes.length === 0 ? "-" : subObra.residentes.map((r) => r.usuario.name).join(", ")}
                     </td>
-                    <td>{obra.presupuesto != null ? Number(obra.presupuesto).toLocaleString() : "-"}</td>
                   </tr>
                 ))}
               </tbody>
             </table>
           )}
-          {!loading && obras.length > 0 && <p className="muted vista-block">Toca una obra para ver sus sub-obras.</p>}
         </section>
+      )}
 
-        <section className="panel-card">
-          <h2>Nueva obra</h2>
-          <p className="muted">
-            Si todavia no existe la zona o la localidad, se pueden crear desde aca mismo.
-          </p>
+      {mostrarModalObra && (
+        <Modal title="Nueva obra" onClose={() => setMostrarModalObra(false)}>
+          <p className="muted">Si todavia no existe la zona o la localidad, se pueden crear desde aca mismo.</p>
           {formError && <div className="form-error">{formError}</div>}
           <form className="stacked-form" onSubmit={handleSubmit}>
             <div className="field">
@@ -373,112 +433,73 @@ function ObrasPanel() {
               {submitting ? "Creando..." : "Crear obra"}
             </button>
           </form>
-        </section>
-      </div>
+        </Modal>
+      )}
 
-      {obraSeleccionada && (
-        <div className="panel-grid vista-block">
-          <section className="panel-card">
-            <h2>Sub-obras de {obraSeleccionada.nombre}</h2>
-            {loadingSubObras ? (
-              <p className="muted">Cargando...</p>
-            ) : subObras.length === 0 ? (
-              <p className="muted">Todavia no hay sub-obras.</p>
-            ) : (
-              <table className="data-table">
-                <thead>
-                  <tr>
-                    <th>Nombre</th>
-                    <th>Estado</th>
-                    <th>Calidad/Produccion</th>
-                    <th>Residentes</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {subObras.map((subObra) => (
-                    <tr key={subObra.id}>
-                      <td>{subObra.nombre}</td>
-                      <td>
-                        <span className="role-pill">{subObra.estado}</span>
-                      </td>
-                      <td>{subObra.responsableCalidad?.name || "-"}</td>
-                      <td>
-                        {subObra.residentes.length === 0
-                          ? "-"
-                          : subObra.residentes.map((r) => r.usuario.name).join(", ")}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
-          </section>
+      {mostrarModalSubObra && obraSeleccionada && (
+        <Modal title={`Nueva sub-obra en ${obraSeleccionada.nombre}`} onClose={() => setMostrarModalSubObra(false)}>
+          {subObraError && <div className="form-error">{subObraError}</div>}
+          <form className="stacked-form" onSubmit={handleSubmitSubObra}>
+            <div className="field">
+              <label htmlFor="subObraNombre">Nombre</label>
+              <input
+                id="subObraNombre"
+                value={subObraForm.nombre}
+                onChange={(e) => setSubObraForm({ ...subObraForm, nombre: e.target.value })}
+                required
+              />
+            </div>
 
-          <section className="panel-card">
-            <h2>Nueva sub-obra</h2>
-            {subObraError && <div className="form-error">{subObraError}</div>}
-            <form className="stacked-form" onSubmit={handleSubmitSubObra}>
-              <div className="field">
-                <label htmlFor="subObraNombre">Nombre</label>
-                <input
-                  id="subObraNombre"
-                  value={subObraForm.nombre}
-                  onChange={(e) => setSubObraForm({ ...subObraForm, nombre: e.target.value })}
-                  required
-                />
-              </div>
+            <div className="field">
+              <label htmlFor="subObraDescripcion">Descripcion</label>
+              <input
+                id="subObraDescripcion"
+                value={subObraForm.descripcion}
+                onChange={(e) => setSubObraForm({ ...subObraForm, descripcion: e.target.value })}
+              />
+            </div>
 
-              <div className="field">
-                <label htmlFor="subObraDescripcion">Descripcion</label>
-                <input
-                  id="subObraDescripcion"
-                  value={subObraForm.descripcion}
-                  onChange={(e) => setSubObraForm({ ...subObraForm, descripcion: e.target.value })}
-                />
-              </div>
+            <div className="field">
+              <label htmlFor="subObraResponsable">Responsable de calidad/produccion</label>
+              <select
+                id="subObraResponsable"
+                value={subObraForm.responsableCalidadId}
+                onChange={(e) => setSubObraForm({ ...subObraForm, responsableCalidadId: e.target.value })}
+              >
+                <option value="">Sin asignar</option>
+                {calidadDisponibles.map((usuario) => (
+                  <option key={usuario.id} value={usuario.id}>
+                    {usuario.name}
+                  </option>
+                ))}
+              </select>
+            </div>
 
-              <div className="field">
-                <label htmlFor="subObraResponsable">Responsable de calidad/produccion</label>
-                <select
-                  id="subObraResponsable"
-                  value={subObraForm.responsableCalidadId}
-                  onChange={(e) => setSubObraForm({ ...subObraForm, responsableCalidadId: e.target.value })}
-                >
-                  <option value="">Sin asignar</option>
-                  {calidadDisponibles.map((usuario) => (
-                    <option key={usuario.id} value={usuario.id}>
+            <div className="field">
+              <label>Residentes asignados</label>
+              {residentesDisponibles.length === 0 ? (
+                <p className="muted">No hay usuarios con rol RESIDENTE todavia.</p>
+              ) : (
+                <div className="vista-checklist">
+                  {residentesDisponibles.map((usuario) => (
+                    <label key={usuario.id} className="vista-check">
+                      <input
+                        type="checkbox"
+                        checked={subObraForm.residenteIds.includes(usuario.id)}
+                        onChange={() => toggleResidente(usuario.id)}
+                      />
                       {usuario.name}
-                    </option>
+                    </label>
                   ))}
-                </select>
-              </div>
+                </div>
+              )}
+            </div>
 
-              <div className="field">
-                <label>Residentes asignados</label>
-                {residentesDisponibles.length === 0 ? (
-                  <p className="muted">No hay usuarios con rol RESIDENTE todavia.</p>
-                ) : (
-                  <div className="vista-checklist">
-                    {residentesDisponibles.map((usuario) => (
-                      <label key={usuario.id} className="vista-check">
-                        <input
-                          type="checkbox"
-                          checked={subObraForm.residenteIds.includes(usuario.id)}
-                          onChange={() => toggleResidente(usuario.id)}
-                        />
-                        {usuario.name}
-                      </label>
-                    ))}
-                  </div>
-                )}
-              </div>
-
-              <button className="btn-primary" type="submit" disabled={submittingSubObra}>
-                {submittingSubObra ? "Creando..." : "Crear sub-obra"}
-              </button>
-            </form>
-          </section>
-        </div>
+            <button className="btn-primary" type="submit" disabled={submittingSubObra}>
+              {submittingSubObra ? "Creando..." : "Crear sub-obra"}
+            </button>
+          </form>
+        </Modal>
       )}
     </>
   );
