@@ -4,51 +4,69 @@ Actualizado: 2026-08-17
 
 QUE ES
 ------
-Sistema de seguimiento de proyectos de construccion para una constructora.
-Nace como un sistema TOTALMENTE APARTE del sistema de joyeria (Don Joyero,
-carpeta ../joyeria), para que el equipo de la joyeria no tenga ninguna
-visibilidad ni acceso al de la constructora, ni viceversa.
+Sistema de seguimiento de proyectos de construccion, multi-empresa (varias
+constructoras pueden usar la misma app, con sus datos completamente
+aislados entre si). Nace como un sistema TOTALMENTE APARTE del sistema de
+joyeria (Don Joyero, carpeta ../joyeria), para que el equipo de la joyeria
+no tenga ninguna visibilidad ni acceso al de la constructora, ni viceversa.
+
+Primera empresa cargada: "JJAM".
+
+ESTADO ACTUAL: YA ESTA DESPLEGADO Y EN VIVO
+---------------------------------------------
+https://obras.donjoyero.com esta funcionando en produccion (frontend +
+backend + base de datos real), probado end-to-end (login real incluido).
+Faltan las pantallas de negocio (Obras/Sub-obras/cronograma/pedidos); lo
+que existe hoy es: login, y las pantallas de alta de empresas (superadmin)
+y de equipo/invitaciones (administrador/supervisor).
 
 DECISIONES TOMADAS (y por que)
 -------------------------------
 1. Repo propio, sin relacion con joyeria.
    - joyeria/ es un solo repo git con admin/backend/frontend adentro.
-   - obras/ es OTRO repo git independiente (git init propio en esta carpeta),
-     para que no comparta historial ni acceso con joyeria.
+   - obras/ es OTRO repo git independiente: https://github.com/Pirreigor/obras
 
-2. Dominio: subdominio gratis en vez de comprar un dominio nuevo.
-   - Se eligio obras.donjoyero.com (subdominio del dominio que ya existe
-     para la joyeria) en vez de pagar por un dominio nuevo tipo .com/.pe.
-   - Falta: crear el registro DNS para obras.donjoyero.com apuntando a la
-     futura app de DigitalOcean.
+2. Dominio: subdominio del dominio que ya existe para la joyeria.
+   - obras.donjoyero.com. Registro DNS tipo A -> 104.131.19.189 ya creado
+     y propagado.
 
-3. Base de datos: nueva DB dentro del MISMO cluster de Postgres de DO.
-   - La joyeria usa un cluster de Postgres administrado en DigitalOcean
-     (base "defaultdb", host tipo joyeria-db-do-user-xxxx.g.db.ondigitalocean.com).
-   - Para obras se decidio crear OTRA base de datos ("obras_db") dentro de
-     ese MISMO cluster (ahorra costo, DO lo permite gratis), pero con un
-     USUARIO de Postgres propio y distinto (no reusar "doadmin" ni el user
-     de joyeria), con permisos solo sobre obras_db. Asi ni con la connection
-     string se puede tocar la data de joyeria.
-   - Alternativa descartada (mas cara pero con aislamiento total): un
-     cluster de Postgres separado.
+3. Base de datos: DB nueva dentro del MISMO cluster de Postgres de DO
+   (cluster "joyeria-db", ahorra costo, DO lo permite gratis).
+   - Base: obras_db. Usuario propio: obras_user (NO doadmin, NO el user de
+     joyeria).
+   - IMPORTANTE - hallazgo de seguridad (2026-08-17, sin resolver todavia):
+     por defecto en DO, cualquier usuario nuevo del cluster puede
+     CONECTARSE a las demas bases del cluster (incluida defaultdb, la de
+     joyeria), aunque NO puede leer datos (confirmado: "permission denied"
+     al hacer SELECT sobre una tabla real de joyeria). Para cerrar esto del
+     todo falta correr, con doadmin:
+       REVOKE CONNECT ON DATABASE defaultdb FROM obras_user;
+     Se decidio dejarlo pendiente (no bloqueante) por ahora.
+   - Para que obras_user pudiera migrar/crear tablas en obras_db hubo que
+     correr (con doadmin, una sola vez):
+       ALTER SCHEMA public OWNER TO obras_user;
+       ALTER DATABASE obras_db OWNER TO obras_user;
+     (Un usuario nuevo en DO no es dueno de su propia base por default.)
+   - OJO: en algun momento de esta configuracion la contrasena de doadmin
+     quedo pegada sin querer en un chat. Convendria rotarla en DO
+     (Databases -> joyeria-db -> Users & Databases -> doadmin).
 
 4. Despliegue: mismo Droplet que joyeria, carpeta y proceso separados.
-   - CORREGIDO 2026-08-17: joyeria NO esta en App Platform, esta en un
-     Droplet propio: ubuntu-s-1vcpu-1gb-nyc3, IP 104.131.19.189, NYC3,
-     Ubuntu 24.04, 1GB RAM / 25GB disco. Sirve con Nginx (+ probablemente
-     PM2) desde /var/www/joyeria.
-   - obras va en el MISMO Droplet (no se crea un Droplet nuevo), pero en
-     su propia carpeta /var/www/obras, con su propio proceso PM2 (puerto
-     distinto, ver backend/.env.example -> 4100) y su propio bloque de
-     server Nginx para obras.donjoyero.com (con su propio certificado
-     TLS via certbot).
-   - OJO: el Droplet es de 1GB de RAM. Correr joyeria + obras a la vez
-     (2 procesos Node) ahi puede ir justo de memoria; conviene monitorear
-     uso (free -h, pm2 monit) al desplegar y considerar upgrade de
-     Droplet si se ajusta.
-   - Pendiente confirmar: si joyeria realmente usa PM2 y en que puerto,
-     revisando la config del Droplet por SSH antes de desplegar obras.
+   - Droplet: ubuntu-s-1vcpu-1gb-nyc3, IP 104.131.19.189, NYC3, Ubuntu
+     24.04, 1GB RAM / 25GB disco. Node v22, PM2, Nginx.
+   - joyeria: /var/www/joyeria, proceso PM2 "joyeria-api" en puerto 4000.
+   - obras: /var/www/obras (repo clonado ahi), proceso PM2 "obras-api" en
+     puerto 4100, bloque Nginx propio (/etc/nginx/sites-available/obras)
+     que sirve el frontend como estatico (frontend/dist) y proxea /api/ al
+     puerto 4100. Certificado TLS propio via certbot para
+     obras.donjoyero.com (NO comparte ni modifica el certificado de
+     joyeria, que sigue cubriendo donjoyero.com/www/erp/api).
+   - Memoria: con los dos procesos Node corriendo, quedan ~500MB
+     disponibles de 961MB totales. Ajustado pero funciona; vigilar con
+     `free -h` / `pm2 list` si se agregan mas procesos.
+   - Acceso SSH: se genero una key dedicada (obras_deploy_ed25519) agregada
+     a ~/.ssh/authorized_keys de root para el despliegue asistido. Convendria
+     quitarla de authorized_keys cuando ya no se necesite acceso recurrente.
 
 5. Stack tecnologico (igual al de joyeria, por consistencia):
    - Backend: Node.js + Express 5 + Prisma ORM + PostgreSQL. JS plano
@@ -59,104 +77,106 @@ ESTRUCTURA DEL PROYECTO
 ------------------------
 obras/
   backend/
-    prisma/schema.prisma   -> modelos Usuario, Proyecto, Avance
-    prisma/seed.js         -> crea usuario admin de prueba
-    src/app.js, index.js   -> servidor Express
-    src/controllers/       -> auth.controller.js, proyecto.controller.js
-    src/routes/            -> auth.routes.js, proyecto.routes.js
-    src/middleware/        -> auth.middleware.js, role.middleware.js, error.middleware.js
+    prisma/schema.prisma    -> ver MODELO DE DATOS abajo
+    prisma/migrations/      -> 20260817190043_init (generada y aplicada
+                                directo contra produccion, sin shadow DB
+                                por permisos; ver seccion Base de datos)
+    prisma/seed.js          -> crea SUPERADMINISTRADOR + empresa JJAM + su
+                                primer ADMINISTRADOR
+    src/app.js, index.js    -> servidor Express
+    src/controllers/        -> auth, empresa, usuario, zona, obra, subObra
+    src/routes/             -> uno por controller, mas arriba
+    src/middleware/         -> auth.middleware.js, role.middleware.js, error.middleware.js
     src/utils/              -> hash.js, jwt.js, prisma.js
-    .env.example           -> plantilla de variables de entorno
+    .env                    -> EN EL SERVIDOR, con DATABASE_URL y JWT_SECRET
+                                reales, permisos 600. NUNCA commiteado.
   frontend/
-    src/App.jsx            -> pantalla de login (MVP, sin diseno final)
-    src/main.jsx, styles.css
-    vite.config.js          -> corre en puerto 5183
-  README.md                -> instrucciones de instalacion
+    src/App.jsx             -> login + shell autenticado (ver rol abajo)
+    src/api.js               -> helper de fetch con token; en build de
+                                produccion sin VITE_API_URL usa rutas
+                                relativas (mismo dominio, Nginx proxea)
+    src/components/          -> EmpresasPanel, EquipoPanel, AceptarInvitacion
+    vite.config.js            -> dev corre en puerto 5183
+  README.md                 -> instrucciones + lista de endpoints
 
-MODELO DE DATOS (MVP actual)
------------------------------
-Usuario: id, name, email, passwordHash, rol (ADMINISTRADOR | SUPERVISOR)
-Proyecto: id, nombre, descripcion, cliente, ubicacion, estado
-  (PLANIFICACION | EN_PROGRESO | PAUSADO | FINALIZADO | CANCELADO),
-  presupuesto, fechaInicio, fechaFinEstimada, responsable (Usuario)
-Avance: id, proyectoId, titulo, descripcion, porcentaje, imagenes[],
-  creadoPor (Usuario), createdAt
+MODELO DE DATOS Y ROLES (multi-empresa)
+------------------------------------------
+Jerarquia: Empresa -> Zona -> Localidad -> Obra -> SubObra
 
-Esto es un punto de partida razonable, pero NO se termino de conversar con
-el usuario que campos exactos necesita para el seguimiento de obra (fotos,
-reportes, checklist de tareas, roles adicionales tipo "cliente" que solo ve
-su proyecto, notificaciones, etc.). Conviene retomar esa conversacion antes
-de seguir construyendo pantallas.
+Roles (enum Rol):
+  SUPERADMINISTRADOR - sin empresaId, existe fuera de toda empresa. Unico
+    que crea registros de Empresa (y de paso su primer ADMINISTRADOR).
+  ADMINISTRADOR      - por empresa. Gestiona Obras/Sub-obras, invita usuarios.
+  SUPERVISOR         - por empresa, ve TODO (todas las zonas/localidades/
+    obras) en modo lectura global; tambien puede invitar usuarios.
+  RESIDENTE          - uno por Obra. Ve/gestiona su Obra y las Sub-obras
+    de esa obra, puede reportar avances.
+  CALIDAD_PRODUCCION - por Sub-obra. Reporta avances/actividades de su
+    sub-obra, lee el progreso general de la Obra padre.
 
-ESTADO ACTUAL (lo que YA esta hecho)
---------------------------------------
-- Repo git inicializado en obras/ con 2 commits (scaffold inicial +
-  package-lock.json del backend).
-- Backend: dependencias instaladas (npm install), Prisma Client generado
-  y validado (sintaxis de todos los .js verificada con node -c).
-- Frontend: dependencias instaladas (npm install).
-- Endpoints funcionales (probados solo a nivel de codigo, no en runtime
-  contra una base de datos real todavia):
-  GET  /health
-  POST /api/auth/register
-  POST /api/auth/login
-  GET  /api/auth/me
-  GET  /api/proyectos
-  GET  /api/proyectos/:id
-  POST /api/proyectos            (solo ADMINISTRADOR)
-  PATCH /api/proyectos/:id       (solo ADMINISTRADOR)
-  DELETE /api/proyectos/:id      (solo ADMINISTRADOR)
-  GET  /api/proyectos/:id/avances
-  POST /api/proyectos/:id/avances
+Entidades principales (ver schema.prisma para campos exactos):
+  Empresa, Zona, Localidad, Obra, SubObra
+  ActividadCatalogo / ActividadProgramada / RegistroDiario (cronograma;
+    RegistroDiario es 1 por dia trabajado, no un rango de fechas)
+  Avance (reporte con fotos, ligado a SubObra y opcionalmente a una
+    ActividadProgramada)
+  MaterialCatalogo / PedidoMaterial / PedidoMaterialItem /
+    PedidoItemSubObra (un pedido puede repartirse entre varias sub-obras;
+    ver diagrama de referencia mas abajo)
+  Invitacion (alta de usuarios por link, ver ALTA DE USUARIOS)
 
-PENDIENTE (proximos pasos, en orden)
---------------------------------------
-1. Correr localmente contra una base de datos real:
-   - Hay Postgres corriendo en localhost:5432 en esta maquina (mismo
-     servicio que usa joyeria), pero NO se pudieron crear una base ni un
-     usuario nuevos para obras porque no se tienen las credenciales de
-     superusuario de ese Postgres local a mano.
-   - Falta: o bien el usuario da la contrasena del superusuario "postgres"
-     local para crear "obras_db" + un rol propio, o crea el usuario/base el
-     mismo con pgAdmin/psql, o se decide correr localmente directo contra
-     una base de prueba en el cluster de DO.
-2. Completar backend/.env (copiado de .env.example) con la DATABASE_URL
-   real y un JWT_SECRET propio (NUNCA reusar el JWT_SECRET ni las
-   credenciales de Postgres de joyeria).
-3. Correr la migracion inicial: npm run prisma:migrate -- --name init
-4. Correr el seed: npm run seed
-5. Levantar backend (npm run dev, puerto 4100) y frontend (npm run dev,
-   puerto 5183) y probar el login end-to-end en el navegador.
-6. Definir con el usuario el modelo de datos final (ver seccion anterior).
-7. Construir las pantallas reales del frontend (lista de proyectos, detalle,
-   registro de avances con fotos, etc.).
-8. Ya en produccion (Droplet ubuntu-s-1vcpu-1gb-nyc3, 104.131.19.189):
-   a. Crear "obras_db" + usuario propio en el cluster de Postgres de DO.
-   b. Por SSH: crear /var/www/obras, clonar este repo ahi, npm install e
-      npm run build en frontend y backend.
-   c. Configurar PM2 para el backend de obras en un puerto propio
-      (distinto al de joyeria).
-   d. Agregar un nuevo server block de Nginx para obras.donjoyero.com
-      (proxy al puerto de PM2 de obras + estaticos del frontend build).
-   e. Agregar el registro DNS tipo A para obras.donjoyero.com apuntando a
-      104.131.19.189 (mismo droplet que joyeria).
-   f. Emitir certificado TLS para obras.donjoyero.com (certbot).
-   g. Cargar las variables de entorno de produccion (DATABASE_URL,
-      JWT_SECRET, etc.) solo en el .env de /var/www/obras, nunca
-      compartidas con joyeria.
+Diagrama de referencia (jerarquia, cronograma, pedidos compartidos):
+  https://claude.ai/code/artifact/644dad6c-16f7-4d8d-a782-de24586f1fb4
+  (nota: este diagrama es de ANTES de agregar Empresa como raiz; el resto
+  sigue vigente)
 
-CREDENCIALES DE PRUEBA (seed local, NO son de produccion)
+ALTA DE USUARIOS (sin registro publico)
+-------------------------------------------
+No existe /api/auth/register. El flujo es:
+  1. SUPERADMINISTRADOR crea la Empresa + su primer ADMINISTRADOR
+     (POST /api/empresas).
+  2. Ese ADMINISTRADOR (o un SUPERVISOR) invita gente por email:
+     POST /api/auth/invitaciones {email, rol} -> genera un token.
+  3. El invitado entra a /aceptar-invitacion?token=... y define nombre +
+     contrasena (POST /api/auth/aceptar-invitacion) -> cuenta activa.
+  PENDIENTE: el correo de invitacion NO se envia solo todavia (no se
+  eligio proveedor de email). Por ahora el link se muestra en pantalla
+  para copiar y compartir a mano.
+
+PENDIENTE (proximos pasos, en orden sugerido)
+-------------------------------------------------
+1. Elegir proveedor de email y conectar el envio real de invitaciones.
+2. Cerrar el hallazgo de seguridad de la base de datos (REVOKE CONNECT de
+   obras_user sobre defaultdb) y rotar la contrasena de doadmin.
+3. Construir las pantallas de negocio: lista de Obras/Sub-obras, detalle,
+   cronograma de actividades (catalogo + registro diario), avances con
+   fotos, pedidos de material compartidos entre sub-obras.
+4. Backend: faltan los controllers/rutas de ActividadCatalogo/Programada/
+   RegistroDiario y de PedidoMaterial (el schema ya los soporta).
+5. Revisar los "npm audit" del backend y frontend (quedaron vulnerabilidades
+   reportadas, no revisadas todavia).
+6. Sacar la SSH key de despliegue (obras_deploy_ed25519) de
+   ~/.ssh/authorized_keys en el Droplet si no se va a seguir usando.
+7. Considerar automatizar el redeploy (hoy es manual: git pull + npm
+   install + build + prisma migrate deploy + pm2 restart obras-api).
+
+CREDENCIALES (produccion real, no son de prueba)
 ------------------------------------------------------------
-email: admin@obras.local
-password: Admin12345
+superadministrador: superadmin@obras.local / Superadmin12345
+administrador de "JJAM": admin@obras.local / Admin12345
+(convendria cambiar ambas contrasenas post-despliegue)
 
 NOTAS DE SEGURIDAD
 -------------------
 - backend/.env.example es solo una plantilla, sin credenciales reales.
-- backend/.env (con credenciales reales) esta en .gitignore, nunca se
-  debe commitear.
-- El usuario de Postgres de obras_db debe ser distinto y con permisos
-  acotados solo a esa base, aunque comparta cluster con joyeria.
-- El JWT_SECRET de obras debe ser distinto al de joyeria (sesiones
-  independientes; un secreto compartido permitiria falsificar tokens
-  entre ambos sistemas).
+- backend/.env real vive SOLO en el servidor (/var/www/obras/backend/.env,
+  permisos 600), nunca en git.
+- obras_user es un usuario de Postgres propio y distinto de doadmin y del
+  usuario de joyeria, con permisos acotados a obras_db (ver salvedad del
+  REVOKE CONNECT pendiente, arriba).
+- El JWT_SECRET de obras es distinto al de joyeria (generado con
+  openssl rand -hex 48).
+- SUPERVISOR tiene alcance global solo DENTRO de su propia empresa (no
+  cross-empresa; eso es exclusivo de SUPERADMINISTRADOR). El rol por
+  defecto de cualquier alta que no especifique rol es CALIDAD_PRODUCCION
+  (el de menor alcance) a proposito, para evitar escalacion de privilegios.
