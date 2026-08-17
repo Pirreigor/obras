@@ -205,20 +205,143 @@ function AvanceForm({ fecha, actividades, subObras, onSaved, onError }) {
   );
 }
 
-function DetalleDia({ fecha, programadas, avances, subObras, actividades, onSaved, formError, setFormError }) {
+const HORA_INICIO = 6;
+const HORA_FIN = 20;
+const ALTO_HORA = 46;
+
+// Igual que keyFromIso: se lee la hora literal del string ISO (posiciones
+// 11-16, "HH:mm") en vez de pasar por Date, para no depender del huso
+// horario del navegador.
+function horaDecimalDeIso(iso) {
+  const [h, m] = iso.slice(11, 16).split(":").map(Number);
+  return h + m / 60;
+}
+
+function formatHoraDecimal(valor) {
+  const h = Math.floor(valor);
+  const m = Math.round((valor - h) * 60);
+  return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
+}
+
+// Recorta el rango previsto de cada actividad a la franja horaria de este
+// dia puntual: si la actividad viene de un dia anterior o sigue en uno
+// posterior, se estira hasta el borde del rango visible.
+function bloquesDelDia(actividades, diaKey) {
+  return actividades
+    .filter((a) => estaProgramadaEseDia(a, diaKey))
+    .map((a) => {
+      const inicioKey = a.fechaInicioPlan ? keyFromIso(a.fechaInicioPlan) : null;
+      const finKey = a.fechaFinPlan ? keyFromIso(a.fechaFinPlan) : inicioKey;
+      const cierreKey = a.fechaCierreReal ? keyFromIso(a.fechaCierreReal) : null;
+
+      let horaInicio = inicioKey === diaKey ? horaDecimalDeIso(a.fechaInicioPlan) : HORA_INICIO;
+      let horaFin = finKey === diaKey ? horaDecimalDeIso(a.fechaFinPlan) : HORA_FIN;
+      horaInicio = Math.max(HORA_INICIO, Math.min(horaInicio, HORA_FIN));
+      horaFin = Math.max(horaInicio + 0.5, Math.min(horaFin, HORA_FIN));
+
+      return {
+        actividad: a,
+        horaInicio,
+        horaFin,
+        cierreRealHoy: cierreKey === diaKey ? horaDecimalDeIso(a.fechaCierreReal) : null,
+      };
+    });
+}
+
+// Reparte los bloques que se superponen en columnas lado a lado, como
+// una mini agenda, para que no queden unos encima de otros.
+function asignarColumnas(bloques) {
+  const ordenados = [...bloques].sort((a, b) => a.horaInicio - b.horaInicio);
+  const finColumnas = [];
+  const conColumna = ordenados.map((bloque) => {
+    let columna = finColumnas.findIndex((fin) => fin <= bloque.horaInicio);
+    if (columna === -1) {
+      columna = finColumnas.length;
+      finColumnas.push(bloque.horaFin);
+    } else {
+      finColumnas[columna] = bloque.horaFin;
+    }
+    return { ...bloque, columna };
+  });
+  return { bloques: conColumna, totalColumnas: finColumnas.length || 1 };
+}
+
+function TimelineDia({ fecha, actividades }) {
+  const { bloques, totalColumnas } = useMemo(
+    () => asignarColumnas(bloquesDelDia(actividades, fecha)),
+    [actividades, fecha]
+  );
+
+  const horas = [];
+  for (let h = HORA_INICIO; h <= HORA_FIN; h++) {
+    horas.push(h);
+  }
+  const alturaTotal = (HORA_FIN - HORA_INICIO) * ALTO_HORA;
+
+  return (
+    <div className="timeline-dia">
+      <div className="timeline-horas">
+        {horas.map((h) => (
+          <div className="timeline-hora-label" key={h} style={{ height: ALTO_HORA }}>
+            {String(h).padStart(2, "0")}:00
+          </div>
+        ))}
+      </div>
+      <div className="timeline-track" style={{ height: alturaTotal }}>
+        {horas.map((h) => (
+          <div className="timeline-linea" key={h} style={{ top: (h - HORA_INICIO) * ALTO_HORA }} />
+        ))}
+        {bloques.length === 0 && <p className="muted timeline-vacio">Sin actividades programadas para este dia.</p>}
+        {bloques.map(({ actividad, horaInicio, horaFin, cierreRealHoy, columna }) => (
+          <div
+            key={actividad.id}
+            className={`timeline-bloque${actividad.urgente ? " timeline-bloque-urgente" : ""}${
+              actividad.estado === "HECHA" ? " timeline-bloque-hecha" : ""
+            }`}
+            style={{
+              top: (horaInicio - HORA_INICIO) * ALTO_HORA,
+              height: (horaFin - horaInicio) * ALTO_HORA,
+              left: `${(columna / totalColumnas) * 100}%`,
+              width: `calc(${100 / totalColumnas}% - 6px)`,
+            }}
+          >
+            <strong>{actividad.subObra.nombre}</strong>
+            <span>{actividad.actividadCatalogo?.nombre}</span>
+            <span className="timeline-bloque-horas">
+              {formatHoraDecimal(horaInicio)}&ndash;{formatHoraDecimal(horaFin)}
+              {cierreRealHoy != null ? ` · cierre real ${formatHoraDecimal(cierreRealHoy)}` : ""}
+            </span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function DetalleDia({ fecha, programadas, avances, subObras, actividades, onSaved, formError, setFormError, timeline }) {
   return (
     <>
-      {programadas.length > 0 && (
+      {timeline ? (
         <div className="vista-block">
-          <h3>Actividades programadas este dia</h3>
-          <div className="vista-checklist">
-            {programadas.map((a) => (
-              <div key={a.id} className="muted">
-                {a.subObra.nombre} &middot; {a.actividadCatalogo?.nombre}
-              </div>
-            ))}
-          </div>
+          <TimelineDia fecha={fecha} actividades={actividades} />
+          <p className="muted timeline-leyenda">
+            <span className="timeline-leyenda-swatch timeline-leyenda-urgente" /> Urgente &nbsp;
+            <span className="timeline-leyenda-swatch timeline-leyenda-hecha" /> Completada
+          </p>
         </div>
+      ) : (
+        programadas.length > 0 && (
+          <div className="vista-block">
+            <h3>Actividades programadas este dia</h3>
+            <div className="vista-checklist">
+              {programadas.map((a) => (
+                <div key={a.id} className="muted">
+                  {a.subObra.nombre} &middot; {a.actividadCatalogo?.nombre}
+                </div>
+              ))}
+            </div>
+          </div>
+        )
       )}
       {avances.length > 0 && (
         <div className="vista-block">
@@ -407,6 +530,7 @@ function CalendarioPanel() {
             onSaved={handleAvanceGuardado}
             formError={formError}
             setFormError={setFormError}
+            timeline
           />
         </div>
       ) : (

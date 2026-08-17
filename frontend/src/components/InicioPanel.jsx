@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { apiFetch } from "../api";
 import ActividadesModal from "./ActividadesModal";
+import ProgressBar from "./ProgressBar";
 
 function InicioPanel({ currentUser }) {
   const esGestor = currentUser?.rol === "ADMINISTRADOR" || currentUser?.rol === "SUPERVISOR";
@@ -58,6 +59,7 @@ function InicioPanel({ currentUser }) {
                     </span>
                     <span className="role-pill">{obra.estado}</span>
                   </div>
+                  <ProgressBar value={obra.porcentaje} />
                 </div>
               ))
             : items.map((subObra) => (
@@ -76,6 +78,7 @@ function InicioPanel({ currentUser }) {
                     </span>
                     <span className="role-pill">{subObra.estado}</span>
                   </div>
+                  <ProgressBar value={subObra.porcentaje} />
                 </div>
               ))}
         </div>

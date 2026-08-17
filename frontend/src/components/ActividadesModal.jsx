@@ -10,12 +10,24 @@ const ACTIVIDAD_FORM_INICIAL = {
   fechaFinPlan: "",
 };
 
+const ESTADOS = ["PENDIENTE", "EN_CURSO", "HECHA"];
+
+// Se formatea a partir del string ISO literal (no via Date) para no
+// depender del huso horario del navegador, igual que en CalendarioPanel.
+function formatFechaHora(iso) {
+  if (!iso) return "-";
+  const [fecha, horaCompleta] = iso.split("T");
+  const [, mes, dia] = fecha.split("-");
+  return `${dia}/${mes} ${horaCompleta.slice(0, 5)}`;
+}
+
 function ActividadesModal({ subObra, puedeCrear, puedeMarcarUrgente, onClose }) {
   const [actividades, setActividades] = useState([]);
   const [catalogo, setCatalogo] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [urgenteEnCurso, setUrgenteEnCurso] = useState(null);
+  const [estadoEnCurso, setEstadoEnCurso] = useState(null);
 
   const [mostrarForm, setMostrarForm] = useState(false);
   const [form, setForm] = useState(ACTIVIDAD_FORM_INICIAL);
@@ -58,6 +70,22 @@ function ActividadesModal({ subObra, puedeCrear, puedeMarcarUrgente, onClose }) 
       setError(err.message);
     } finally {
       setUrgenteEnCurso(null);
+    }
+  }
+
+  async function cambiarEstado(actividad, estado) {
+    setEstadoEnCurso(actividad.id);
+    setError("");
+    try {
+      const data = await apiFetch(`/api/sub-obras/${subObra.id}/actividades/${actividad.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({ estado }),
+      });
+      setActividades((prev) => prev.map((a) => (a.id === actividad.id ? data.actividad : a)));
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setEstadoEnCurso(null);
     }
   }
 
@@ -124,6 +152,7 @@ function ActividadesModal({ subObra, puedeCrear, puedeMarcarUrgente, onClose }) 
                 <th>Plan inicio</th>
                 <th>Plan fin</th>
                 <th>Estado</th>
+                <th>Cierre real</th>
                 <th>Urgente</th>
               </tr>
             </thead>
@@ -131,11 +160,27 @@ function ActividadesModal({ subObra, puedeCrear, puedeMarcarUrgente, onClose }) 
               {actividades.map((actividad) => (
                 <tr key={actividad.id}>
                   <td>{actividad.actividadCatalogo?.nombre}</td>
-                  <td>{actividad.fechaInicioPlan ? new Date(actividad.fechaInicioPlan).toLocaleDateString() : "-"}</td>
-                  <td>{actividad.fechaFinPlan ? new Date(actividad.fechaFinPlan).toLocaleDateString() : "-"}</td>
+                  <td>{formatFechaHora(actividad.fechaInicioPlan)}</td>
+                  <td>{formatFechaHora(actividad.fechaFinPlan)}</td>
                   <td>
-                    <span className="role-pill">{actividad.estado}</span>
+                    {puedeMarcarUrgente ? (
+                      <select
+                        className="estado-select"
+                        value={actividad.estado}
+                        onChange={(e) => cambiarEstado(actividad, e.target.value)}
+                        disabled={estadoEnCurso === actividad.id}
+                      >
+                        {ESTADOS.map((estado) => (
+                          <option key={estado} value={estado}>
+                            {estado}
+                          </option>
+                        ))}
+                      </select>
+                    ) : (
+                      <span className="role-pill">{actividad.estado}</span>
+                    )}
                   </td>
+                  <td>{formatFechaHora(actividad.fechaCierreReal)}</td>
                   <td>
                     {puedeMarcarUrgente ? (
                       <button
@@ -194,20 +239,20 @@ function ActividadesModal({ subObra, puedeCrear, puedeMarcarUrgente, onClose }) 
             )}
 
             <div className="field">
-              <label htmlFor="actividadInicio">Fecha planificada de inicio</label>
+              <label htmlFor="actividadInicio">Fecha y hora prevista de inicio</label>
               <input
                 id="actividadInicio"
-                type="date"
+                type="datetime-local"
                 value={form.fechaInicioPlan}
                 onChange={(e) => setForm({ ...form, fechaInicioPlan: e.target.value })}
               />
             </div>
 
             <div className="field">
-              <label htmlFor="actividadFin">Fecha planificada de fin</label>
+              <label htmlFor="actividadFin">Fecha y hora prevista de fin</label>
               <input
                 id="actividadFin"
-                type="date"
+                type="datetime-local"
                 value={form.fechaFinPlan}
                 onChange={(e) => setForm({ ...form, fechaFinPlan: e.target.value })}
               />

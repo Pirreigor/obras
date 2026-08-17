@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { apiFetch } from "../api";
 import Modal from "./Modal";
 import ActividadesModal from "./ActividadesModal";
+import ProgressBar from "./ProgressBar";
 
 const NUEVA = "__nueva__";
 const FORM_INICIAL = {
@@ -240,6 +241,7 @@ function ObrasPanel({ currentUser }) {
                   <th>Localidad</th>
                   <th>Estado</th>
                   <th>Presupuesto</th>
+                  <th>Avance</th>
                 </tr>
               </thead>
               <tbody>
@@ -258,6 +260,9 @@ function ObrasPanel({ currentUser }) {
                       <span className="role-pill">{obra.estado}</span>
                     </td>
                     <td>{obra.presupuesto != null ? Number(obra.presupuesto).toLocaleString() : "-"}</td>
+                    <td>
+                      <ProgressBar value={obra.porcentaje} />
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -291,6 +296,7 @@ function ObrasPanel({ currentUser }) {
                       <th>Estado</th>
                       <th>Calidad/Produccion</th>
                       <th>Residentes</th>
+                      <th>Avance</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -303,6 +309,9 @@ function ObrasPanel({ currentUser }) {
                         <td>{subObra.responsableCalidad?.name || "-"}</td>
                         <td>
                           {subObra.residentes.length === 0 ? "-" : subObra.residentes.map((r) => r.usuario.name).join(", ")}
+                        </td>
+                        <td>
+                          <ProgressBar value={subObra.porcentaje} />
                         </td>
                       </tr>
                     ))}

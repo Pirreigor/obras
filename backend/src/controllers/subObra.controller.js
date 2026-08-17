@@ -1,4 +1,24 @@
 const prisma = require("../utils/prisma");
+const { porcentajeSubObra } = require("../utils/progreso");
+
+// Los inputs datetime-local llegan sin zona horaria ("2026-08-17T08:00").
+// Se interpretan como UTC literal (se agrega "Z") para que la hora
+// guardada sea exactamente la tipeada, sin importar la zona del servidor.
+function parseFechaHora(value) {
+  if (!value) return null;
+  return new Date(/[zZ]$|[+-]\d\d:\d\d$/.test(value) ? value : `${value}Z`);
+}
+
+const PROGRESO_INCLUDE = {
+  actividadesProgramadas: {
+    select: { avances: { select: { porcentaje: true, fecha: true, createdAt: true } } },
+  },
+};
+
+function conPorcentaje(subObra) {
+  const { actividadesProgramadas, ...resto } = subObra;
+  return { ...resto, porcentaje: porcentajeSubObra(subObra) };
+}
 
 function scopedWhere(req, extra = {}) {
   return {
@@ -29,11 +49,12 @@ async function listMias(req, res) {
       obra: { select: { id: true, nombre: true } },
       responsableCalidad: { select: { id: true, name: true } },
       residentes: { include: { usuario: { select: { id: true, name: true } } } },
+      ...PROGRESO_INCLUDE,
     },
     orderBy: { createdAt: "desc" },
   });
 
-  return res.json({ subObras });
+  return res.json({ subObras: subObras.map(conPorcentaje) });
 }
 
 async function getById(req, res) {
@@ -45,7 +66,10 @@ async function getById(req, res) {
       obra: { select: { id: true, nombre: true } },
       responsableCalidad: { select: { id: true, name: true } },
       residentes: { include: { usuario: { select: { id: true, name: true } } } },
-      actividadesProgramadas: { include: { actividadCatalogo: true }, orderBy: { createdAt: "desc" } },
+      actividadesProgramadas: {
+        include: { actividadCatalogo: true, avances: { select: { porcentaje: true, fecha: true, createdAt: true } } },
+        orderBy: { createdAt: "desc" },
+      },
       avances: { orderBy: { fecha: "desc" } },
     },
   });
@@ -54,7 +78,7 @@ async function getById(req, res) {
     return res.status(404).json({ message: "Sub-obra no encontrada" });
   }
 
-  return res.json({ subObra });
+  return res.json({ subObra: conPorcentaje(subObra) });
 }
 
 async function update(req, res) {
@@ -160,8 +184,8 @@ async function createActividad(req, res) {
     data: {
       subObraId,
       actividadCatalogoId: catalogoId,
-      fechaInicioPlan: fechaInicioPlan ? new Date(fechaInicioPlan) : null,
-      fechaFinPlan: fechaFinPlan ? new Date(fechaFinPlan) : null,
+      fechaInicioPlan: parseFechaHora(fechaInicioPlan),
+      fechaFinPlan: parseFechaHora(fechaFinPlan),
     },
     include: { actividadCatalogo: true },
   });
@@ -169,10 +193,12 @@ async function createActividad(req, res) {
   return res.status(201).json({ actividad });
 }
 
+const ESTADOS_VALIDOS = ["PENDIENTE", "EN_CURSO", "HECHA"];
+
 async function updateActividad(req, res) {
   const subObraId = Number(req.params.id);
   const actividadId = Number(req.params.actividadId);
-  const { urgente } = req.body;
+  const { urgente, estado, fechaInicioPlan, fechaFinPlan } = req.body;
 
   const subObra = await prisma.subObra.findFirst({
     where: scopedWhere(req, { id: subObraId }),
@@ -191,9 +217,26 @@ async function updateActividad(req, res) {
     return res.status(404).json({ message: "Actividad no encontrada" });
   }
 
+  if (estado != null && !ESTADOS_VALIDOS.includes(estado)) {
+    return res.status(400).json({ message: "Estado invalido" });
+  }
+
+  const data = {
+    urgente: typeof urgente === "boolean" ? urgente : undefined,
+    fechaInicioPlan: fechaInicioPlan ? parseFechaHora(fechaInicioPlan) : undefined,
+    fechaFinPlan: fechaFinPlan ? parseFechaHora(fechaFinPlan) : undefined,
+  };
+
+  if (estado != null) {
+    data.estado = estado;
+    // La hora de cierre real queda registrada la primera vez que la
+    // actividad pasa a HECHA; si se reabre, se limpia.
+    data.fechaCierreReal = estado === "HECHA" ? actividad.fechaCierreReal || new Date() : null;
+  }
+
   const actualizada = await prisma.actividadProgramada.update({
     where: { id: actividadId },
-    data: { urgente: typeof urgente === "boolean" ? urgente : undefined },
+    data,
     include: { actividadCatalogo: true },
   });
 

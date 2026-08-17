@@ -1,9 +1,30 @@
 const prisma = require("../utils/prisma");
+const { porcentajeSubObra, porcentajeObra } = require("../utils/progreso");
 
 const SUB_OBRA_INCLUDE = {
   responsableCalidad: { select: { id: true, name: true } },
   residentes: { include: { usuario: { select: { id: true, name: true } } } },
 };
+
+const ACTIVIDADES_PROGRESO_INCLUDE = {
+  actividadesProgramadas: {
+    select: { avances: { select: { porcentaje: true, fecha: true, createdAt: true } } },
+  },
+};
+
+function conPorcentajeSubObra(subObra) {
+  const { actividadesProgramadas, ...resto } = subObra;
+  return { ...resto, porcentaje: porcentajeSubObra(subObra) };
+}
+
+function conPorcentajeObra(obra) {
+  const { subObras, ...resto } = obra;
+  const porcentaje = porcentajeObra({ subObras });
+  if (!subObras) {
+    return { ...resto, porcentaje };
+  }
+  return { ...resto, porcentaje, subObras: subObras.map(conPorcentajeSubObra) };
+}
 
 function scopedWhere(req, extra = {}) {
   return {
@@ -18,11 +39,14 @@ async function list(req, res) {
     include: {
       localidad: { include: { zona: true } },
       residente: { select: { id: true, name: true } },
+      subObras: { select: ACTIVIDADES_PROGRESO_INCLUDE },
     },
     orderBy: { createdAt: "desc" },
   });
 
-  return res.json({ obras });
+  return res.json({
+    obras: obras.map(({ subObras, ...obra }) => ({ ...obra, porcentaje: porcentajeObra({ subObras }) })),
+  });
 }
 
 async function getById(req, res) {
@@ -34,7 +58,7 @@ async function getById(req, res) {
       localidad: { include: { zona: true } },
       residente: { select: { id: true, name: true } },
       subObras: {
-        include: SUB_OBRA_INCLUDE,
+        include: { ...SUB_OBRA_INCLUDE, ...ACTIVIDADES_PROGRESO_INCLUDE },
         orderBy: { createdAt: "desc" },
       },
     },
@@ -44,7 +68,7 @@ async function getById(req, res) {
     return res.status(404).json({ message: "Obra no encontrada" });
   }
 
-  return res.json({ obra });
+  return res.json({ obra: conPorcentajeObra(obra) });
 }
 
 async function create(req, res) {
@@ -158,11 +182,11 @@ async function listSubObras(req, res) {
 
   const subObras = await prisma.subObra.findMany({
     where: { obraId },
-    include: SUB_OBRA_INCLUDE,
+    include: { ...SUB_OBRA_INCLUDE, ...ACTIVIDADES_PROGRESO_INCLUDE },
     orderBy: { createdAt: "desc" },
   });
 
-  return res.json({ subObras });
+  return res.json({ subObras: subObras.map(conPorcentajeSubObra) });
 }
 
 async function createSubObra(req, res) {
@@ -219,7 +243,7 @@ async function createSubObra(req, res) {
     return tx.subObra.findUnique({ where: { id: nueva.id }, include: SUB_OBRA_INCLUDE });
   });
 
-  return res.status(201).json({ subObra });
+  return res.status(201).json({ subObra: { ...subObra, porcentaje: 0 } });
 }
 
 module.exports = {

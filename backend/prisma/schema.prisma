@@ -248,6 +248,7 @@ model ActividadProgramada {
   actividadCatalogo   ActividadCatalogo @relation(fields: [actividadCatalogoId], references: [id], onDelete: Restrict)
   fechaInicioPlan     DateTime?
   fechaFinPlan        DateTime?
+  fechaCierreReal     DateTime?
   estado              EstadoActividad   @default(PENDIENTE)
   urgente             Boolean           @default(false)
 
