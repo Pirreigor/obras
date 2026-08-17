@@ -4,9 +4,12 @@ import { apiFetch } from "../api";
 const ROLES = ["ADMINISTRADOR", "SUPERVISOR", "RESIDENTE", "CALIDAD_PRODUCCION"];
 const FORM_INICIAL = { email: "", rol: "RESIDENTE" };
 
-function EquipoPanel() {
+function EquipoPanel({ currentUser }) {
+  const puedeGestionarVistas = currentUser?.rol === "ADMINISTRADOR";
+
   const [usuarios, setUsuarios] = useState([]);
   const [invitaciones, setInvitaciones] = useState([]);
+  const [vistas, setVistas] = useState([]);
   const [loading, setLoading] = useState(true);
   const [listError, setListError] = useState("");
   const [inviteError, setInviteError] = useState("");
@@ -14,16 +17,27 @@ function EquipoPanel() {
   const [submitting, setSubmitting] = useState(false);
   const [lastInviteLink, setLastInviteLink] = useState("");
 
+  const [vistasUsuarioId, setVistasUsuarioId] = useState(null);
+  const [vistasAsignadas, setVistasAsignadas] = useState([]);
+  const [loadingVistas, setLoadingVistas] = useState(false);
+  const [savingVistas, setSavingVistas] = useState(false);
+  const [savedVistas, setSavedVistas] = useState(false);
+  const [vistasError, setVistasError] = useState("");
+
   async function load() {
     setLoading(true);
     setListError("");
     try {
-      const [usuariosRes, invitacionesRes] = await Promise.all([
-        apiFetch("/api/usuarios"),
-        apiFetch("/api/auth/invitaciones"),
-      ]);
+      const peticiones = [apiFetch("/api/usuarios"), apiFetch("/api/auth/invitaciones")];
+      if (puedeGestionarVistas) {
+        peticiones.push(apiFetch("/api/vistas"));
+      }
+      const [usuariosRes, invitacionesRes, vistasRes] = await Promise.all(peticiones);
       setUsuarios(usuariosRes.usuarios);
       setInvitaciones(invitacionesRes.invitaciones);
+      if (vistasRes) {
+        setVistas(vistasRes.vistas);
+      }
     } catch (err) {
       setListError(err.message);
     } finally {
@@ -64,7 +78,52 @@ function EquipoPanel() {
     }
   }
 
+  async function handleToggleVistas(usuario) {
+    if (vistasUsuarioId === usuario.id) {
+      setVistasUsuarioId(null);
+      return;
+    }
+
+    setVistasUsuarioId(usuario.id);
+    setVistasError("");
+    setSavedVistas(false);
+    setLoadingVistas(true);
+    try {
+      const data = await apiFetch(`/api/usuarios/${usuario.id}/vistas`);
+      setVistasAsignadas(data.vistas.map((v) => v.id));
+    } catch (err) {
+      setVistasError(err.message);
+    } finally {
+      setLoadingVistas(false);
+    }
+  }
+
+  function toggleVista(vistaId) {
+    setSavedVistas(false);
+    setVistasAsignadas((prev) =>
+      prev.includes(vistaId) ? prev.filter((id) => id !== vistaId) : [...prev, vistaId]
+    );
+  }
+
+  async function handleSaveVistas() {
+    setSavingVistas(true);
+    setVistasError("");
+    setSavedVistas(false);
+    try {
+      await apiFetch(`/api/usuarios/${vistasUsuarioId}/vistas`, {
+        method: "PUT",
+        body: JSON.stringify({ vistaIds: vistasAsignadas }),
+      });
+      setSavedVistas(true);
+    } catch (err) {
+      setVistasError(err.message);
+    } finally {
+      setSavingVistas(false);
+    }
+  }
+
   const pendientes = invitaciones.filter((inv) => inv.estado === "PENDIENTE");
+  const usuarioSeleccionado = usuarios.find((u) => u.id === vistasUsuarioId);
 
   return (
     <div className="panel-grid">
@@ -82,6 +141,7 @@ function EquipoPanel() {
                 <th>Nombre</th>
                 <th>Email</th>
                 <th>Rol</th>
+                {puedeGestionarVistas && <th>Vistas</th>}
               </tr>
             </thead>
             <tbody>
@@ -92,10 +152,57 @@ function EquipoPanel() {
                   <td>
                     <span className="role-pill">{usuario.rol}</span>
                   </td>
+                  {puedeGestionarVistas && (
+                    <td>
+                      {usuario.rol === "ADMINISTRADOR" ? (
+                        <span className="muted">Acceso total</span>
+                      ) : (
+                        <button className="btn-link" type="button" onClick={() => handleToggleVistas(usuario)}>
+                          {vistasUsuarioId === usuario.id ? "Cerrar" : "Gestionar vistas"}
+                        </button>
+                      )}
+                    </td>
+                  )}
                 </tr>
               ))}
             </tbody>
           </table>
+        )}
+
+        {puedeGestionarVistas && usuarioSeleccionado && (
+          <div className="vista-block">
+            <h3>Vistas de {usuarioSeleccionado.name}</h3>
+            {vistasError && <div className="form-error">{vistasError}</div>}
+            {loadingVistas ? (
+              <p className="muted">Cargando vistas...</p>
+            ) : vistas.length === 0 ? (
+              <p className="muted">Todavia no hay vistas en el catalogo.</p>
+            ) : (
+              <>
+                <div className="vista-checklist">
+                  {vistas.map((vista) => (
+                    <label key={vista.id} className="vista-check">
+                      <input
+                        type="checkbox"
+                        checked={vistasAsignadas.includes(vista.id)}
+                        onChange={() => toggleVista(vista.id)}
+                      />
+                      {vista.nombre}
+                    </label>
+                  ))}
+                </div>
+                <button
+                  className="btn-primary vista-block"
+                  type="button"
+                  onClick={handleSaveVistas}
+                  disabled={savingVistas}
+                >
+                  {savingVistas ? "Guardando..." : "Guardar"}
+                </button>
+                {savedVistas && <p className="muted save-msg">Guardado.</p>}
+              </>
+            )}
+          </div>
         )}
 
         <h3>Invitaciones pendientes</h3>

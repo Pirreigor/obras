@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { apiFetch } from "./api";
 import AceptarInvitacion from "./components/AceptarInvitacion";
-import AsignarVistasPanel from "./components/AsignarVistasPanel";
 import EmpresasPanel from "./components/EmpresasPanel";
 import EquipoPanel from "./components/EquipoPanel";
 import ObrasPanel from "./components/ObrasPanel";
@@ -178,10 +177,7 @@ function AppShell({ user, onLogout }) {
       list.push({ key: "obras", label: "Obras", render: () => <ObrasPanel /> });
     }
     if (user.vistas?.includes("equipo")) {
-      list.push({ key: "equipo", label: "Equipo", render: () => <EquipoPanel /> });
-    }
-    if (user.rol === "ADMINISTRADOR") {
-      list.push({ key: "asignar-vistas", label: "Asignar vistas", render: () => <AsignarVistasPanel /> });
+      list.push({ key: "equipo", label: "Equipo", render: () => <EquipoPanel currentUser={user} /> });
     }
     return list;
   }, [user]);
