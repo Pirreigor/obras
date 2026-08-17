@@ -175,7 +175,7 @@ function AppShell({ user, onLogout }) {
 
     const list = [{ key: "inicio", label: "Inicio", render: () => <InicioPanel currentUser={user} /> }];
     if (user.vistas?.includes("obras")) {
-      list.push({ key: "obras", label: "Obras", render: () => <ObrasPanel /> });
+      list.push({ key: "obras", label: "Obras", render: () => <ObrasPanel currentUser={user} /> });
     }
     if (user.vistas?.includes("equipo")) {
       list.push({ key: "equipo", label: "Equipo", render: () => <EquipoPanel currentUser={user} /> });

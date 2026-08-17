@@ -320,6 +320,14 @@ body {
   font-weight: 600;
 }
 
+.info-card-clickable {
+  cursor: pointer;
+}
+
+.info-card-clickable:hover {
+  border-color: var(--accent);
+}
+
 .panel-grid {
   display: grid;
   grid-template-columns: 1.3fr 1fr;

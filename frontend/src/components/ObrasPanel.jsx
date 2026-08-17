@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { apiFetch } from "../api";
 import Modal from "./Modal";
+import TareasModal from "./TareasModal";
 
 const NUEVA = "__nueva__";
 const FORM_INICIAL = {
@@ -18,7 +19,8 @@ const FORM_INICIAL = {
 
 const SUB_OBRA_FORM_INICIAL = { nombre: "", descripcion: "", responsableCalidadId: "", residenteIds: [] };
 
-function ObrasPanel() {
+function ObrasPanel({ currentUser }) {
+  const puedeCrearTareas = currentUser?.rol === "ADMINISTRADOR";
   const [obras, setObras] = useState([]);
   const [zonas, setZonas] = useState([]);
   const [localidadesPorZona, setLocalidadesPorZona] = useState({});
@@ -38,6 +40,7 @@ function ObrasPanel() {
   const [submittingSubObra, setSubmittingSubObra] = useState(false);
   const [mostrarModalSubObras, setMostrarModalSubObras] = useState(false);
   const [mostrarModalSubObra, setMostrarModalSubObra] = useState(false);
+  const [subObraParaTareas, setSubObraParaTareas] = useState(null);
 
   async function loadObras() {
     setLoading(true);
@@ -278,32 +281,35 @@ function ObrasPanel() {
           ) : subObras.length === 0 ? (
             <p className="muted">Todavia no hay sub-obras.</p>
           ) : (
-            <div className="table-scroll">
-              <table className="data-table">
-                <thead>
-                  <tr>
-                    <th>Nombre</th>
-                    <th>Estado</th>
-                    <th>Calidad/Produccion</th>
-                    <th>Residentes</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {subObras.map((subObra) => (
-                    <tr key={subObra.id}>
-                      <td>{subObra.nombre}</td>
-                      <td>
-                        <span className="role-pill">{subObra.estado}</span>
-                      </td>
-                      <td>{subObra.responsableCalidad?.name || "-"}</td>
-                      <td>
-                        {subObra.residentes.length === 0 ? "-" : subObra.residentes.map((r) => r.usuario.name).join(", ")}
-                      </td>
+            <>
+              <p className="muted">Toca una sub-obra para ver sus tareas.</p>
+              <div className="table-scroll">
+                <table className="data-table">
+                  <thead>
+                    <tr>
+                      <th>Nombre</th>
+                      <th>Estado</th>
+                      <th>Calidad/Produccion</th>
+                      <th>Residentes</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                  </thead>
+                  <tbody>
+                    {subObras.map((subObra) => (
+                      <tr key={subObra.id} className="row-clickable" onClick={() => setSubObraParaTareas(subObra)}>
+                        <td>{subObra.nombre}</td>
+                        <td>
+                          <span className="role-pill">{subObra.estado}</span>
+                        </td>
+                        <td>{subObra.responsableCalidad?.name || "-"}</td>
+                        <td>
+                          {subObra.residentes.length === 0 ? "-" : subObra.residentes.map((r) => r.usuario.name).join(", ")}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </>
           )}
         </Modal>
       )}
@@ -501,6 +507,14 @@ function ObrasPanel() {
             </button>
           </form>
         </Modal>
+      )}
+
+      {subObraParaTareas && (
+        <TareasModal
+          subObra={subObraParaTareas}
+          puedeCrear={puedeCrearTareas}
+          onClose={() => setSubObraParaTareas(null)}
+        />
       )}
     </>
   );

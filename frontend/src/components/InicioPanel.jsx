@@ -1,11 +1,13 @@
 import { useEffect, useState } from "react";
 import { apiFetch } from "../api";
+import TareasModal from "./TareasModal";
 
 function InicioPanel({ currentUser }) {
   const esGestor = currentUser?.rol === "ADMINISTRADOR" || currentUser?.rol === "SUPERVISOR";
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [subObraParaTareas, setSubObraParaTareas] = useState(null);
 
   useEffect(() => {
     async function load() {
@@ -59,7 +61,11 @@ function InicioPanel({ currentUser }) {
                 </div>
               ))
             : items.map((subObra) => (
-                <div className="info-card" key={subObra.id}>
+                <div
+                  className="info-card info-card-clickable"
+                  key={subObra.id}
+                  onClick={() => setSubObraParaTareas(subObra)}
+                >
                   <h3>{subObra.nombre}</h3>
                   <div className="info-card-meta">
                     <span>
@@ -73,6 +79,10 @@ function InicioPanel({ currentUser }) {
                 </div>
               ))}
         </div>
+      )}
+
+      {subObraParaTareas && (
+        <TareasModal subObra={subObraParaTareas} puedeCrear={false} onClose={() => setSubObraParaTareas(null)} />
       )}
     </div>
   );
