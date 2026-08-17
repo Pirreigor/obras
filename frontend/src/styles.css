@@ -200,6 +200,8 @@ body {
 
 .app-shell {
   min-height: 100vh;
+  display: flex;
+  flex-direction: column;
   background: var(--paper);
 }
 
@@ -229,10 +231,49 @@ body {
   color: var(--ink-soft);
 }
 
+.app-body {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+}
+
+.app-sidebar {
+  flex: none;
+  width: 220px;
+  padding: 20px 0;
+  background: var(--surface);
+  border-right: 1px solid var(--border);
+}
+
+.app-sidebar button {
+  display: block;
+  width: 100%;
+  text-align: left;
+  background: none;
+  border: none;
+  border-left: 3px solid transparent;
+  padding: 12px 22px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--ink-soft);
+  cursor: pointer;
+}
+
+.app-sidebar button:hover {
+  color: var(--ink);
+  background: var(--paper);
+}
+
+.app-sidebar button.active {
+  color: var(--ink);
+  background: var(--paper);
+  border-left-color: var(--accent);
+}
+
 .app-content {
+  flex: 1;
   padding: 32px;
-  max-width: 1080px;
-  margin: 0 auto;
+  min-width: 0;
 }
 
 .panel-grid {
@@ -414,38 +455,32 @@ body {
   color: var(--ink-soft);
 }
 
-/* ---------- app nav ---------- */
-
-.app-nav {
-  display: flex;
-  gap: 4px;
-  padding: 0 32px;
-  background: var(--surface);
-  border-bottom: 1px solid var(--border);
-}
-
-.app-nav button {
-  background: none;
-  border: none;
-  border-bottom: 2px solid transparent;
-  padding: 14px 4px;
-  margin-right: 24px;
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--ink-soft);
-  cursor: pointer;
-}
-
-.app-nav button:hover {
-  color: var(--ink);
-}
-
-.app-nav button.active {
-  color: var(--ink);
-  border-bottom-color: var(--accent);
-}
-
 @media (max-width: 860px) {
+  .app-body {
+    flex-direction: column;
+  }
+
+  .app-sidebar {
+    width: 100%;
+    display: flex;
+    overflow-x: auto;
+    padding: 0;
+    border-right: none;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .app-sidebar button {
+    border-left: none;
+    border-bottom: 3px solid transparent;
+    padding: 14px 16px;
+    white-space: nowrap;
+  }
+
+  .app-sidebar button.active {
+    border-left-color: transparent;
+    border-bottom-color: var(--accent);
+  }
+
   .panel-grid {
     grid-template-columns: 1fr;
   }

@@ -217,21 +217,23 @@ function AppShell({ user, onLogout }) {
           </button>
         </div>
       </header>
-      {items.length > 1 && (
-        <nav className="app-nav">
-          {items.map((item) => (
-            <button
-              key={item.key}
-              type="button"
-              className={item.key === active ? "active" : ""}
-              onClick={() => setActive(item.key)}
-            >
-              {item.label}
-            </button>
-          ))}
-        </nav>
-      )}
-      <main className="app-content">{content}</main>
+      <div className="app-body">
+        {items.length > 1 && (
+          <nav className="app-sidebar">
+            {items.map((item) => (
+              <button
+                key={item.key}
+                type="button"
+                className={item.key === active ? "active" : ""}
+                onClick={() => setActive(item.key)}
+              >
+                {item.label}
+              </button>
+            ))}
+          </nav>
+        )}
+        <main className="app-content">{content}</main>
+      </div>
     </div>
   );
 }
