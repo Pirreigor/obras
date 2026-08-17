@@ -9,6 +9,7 @@ const zonaRoutes = require("./routes/zona.routes");
 const obraRoutes = require("./routes/obra.routes");
 const subObraRoutes = require("./routes/subObra.routes");
 const actividadCatalogoRoutes = require("./routes/actividadCatalogo.routes");
+const calendarioRoutes = require("./routes/calendario.routes");
 
 const { notFoundHandler, errorHandler } = require("./middleware/error.middleware");
 
@@ -29,6 +30,7 @@ app.use("/api/zonas", zonaRoutes);
 app.use("/api/obras", obraRoutes);
 app.use("/api/sub-obras", subObraRoutes);
 app.use("/api/actividades-catalogo", actividadCatalogoRoutes);
+app.use("/api/calendario", calendarioRoutes);
 
 app.use(notFoundHandler);
 app.use(errorHandler);

@@ -328,6 +328,66 @@ body {
   border-color: var(--accent);
 }
 
+/* ---------- calendario ---------- */
+
+.calendar-nav {
+  display: flex;
+  gap: 8px;
+}
+
+.calendar-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 6px;
+}
+
+.calendar-weekday {
+  text-align: center;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  color: var(--ink-soft);
+  padding-bottom: 4px;
+}
+
+.calendar-day {
+  position: relative;
+  aspect-ratio: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-size: 14px;
+  font-family: var(--font-body);
+  color: var(--ink);
+  cursor: pointer;
+}
+
+.calendar-day:hover {
+  border-color: var(--accent);
+}
+
+.calendar-day-out {
+  color: var(--ink-soft);
+  opacity: 0.5;
+}
+
+.calendar-day-marcado {
+  border-color: var(--accent);
+  background: var(--paper);
+}
+
+.calendar-dot {
+  position: absolute;
+  bottom: 6px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent);
+}
+
 .panel-grid {
   display: grid;
   grid-template-columns: 1.3fr 1fr;

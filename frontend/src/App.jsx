@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { apiFetch } from "./api";
 import AceptarInvitacion from "./components/AceptarInvitacion";
+import CalendarioPanel from "./components/CalendarioPanel";
 import EmpresasPanel from "./components/EmpresasPanel";
 import EquipoPanel from "./components/EquipoPanel";
 import InicioPanel from "./components/InicioPanel";
@@ -174,6 +175,9 @@ function AppShell({ user, onLogout }) {
     }
 
     const list = [{ key: "inicio", label: "Inicio", render: () => <InicioPanel currentUser={user} /> }];
+    if (user.rol === "RESIDENTE" || user.rol === "CALIDAD_PRODUCCION") {
+      list.push({ key: "calendario", label: "Calendario", render: () => <CalendarioPanel /> });
+    }
     if (user.vistas?.includes("obras")) {
       list.push({ key: "obras", label: "Obras", render: () => <ObrasPanel currentUser={user} /> });
     }
