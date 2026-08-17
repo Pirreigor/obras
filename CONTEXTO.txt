@@ -1,0 +1,145 @@
+CONTEXTO DEL PROYECTO "OBRAS"
+=============================
+Actualizado: 2026-08-17
+
+QUE ES
+------
+Sistema de seguimiento de proyectos de construccion para una constructora.
+Nace como un sistema TOTALMENTE APARTE del sistema de joyeria (Don Joyero,
+carpeta ../joyeria), para que el equipo de la joyeria no tenga ninguna
+visibilidad ni acceso al de la constructora, ni viceversa.
+
+DECISIONES TOMADAS (y por que)
+-------------------------------
+1. Repo propio, sin relacion con joyeria.
+   - joyeria/ es un solo repo git con admin/backend/frontend adentro.
+   - obras/ es OTRO repo git independiente (git init propio en esta carpeta),
+     para que no comparta historial ni acceso con joyeria.
+
+2. Dominio: subdominio gratis en vez de comprar un dominio nuevo.
+   - Se eligio obras.donjoyero.com (subdominio del dominio que ya existe
+     para la joyeria) en vez de pagar por un dominio nuevo tipo .com/.pe.
+   - Falta: crear el registro DNS para obras.donjoyero.com apuntando a la
+     futura app de DigitalOcean.
+
+3. Base de datos: nueva DB dentro del MISMO cluster de Postgres de DO.
+   - La joyeria usa un cluster de Postgres administrado en DigitalOcean
+     (base "defaultdb", host tipo joyeria-db-do-user-xxxx.g.db.ondigitalocean.com).
+   - Para obras se decidio crear OTRA base de datos ("obras_db") dentro de
+     ese MISMO cluster (ahorra costo, DO lo permite gratis), pero con un
+     USUARIO de Postgres propio y distinto (no reusar "doadmin" ni el user
+     de joyeria), con permisos solo sobre obras_db. Asi ni con la connection
+     string se puede tocar la data de joyeria.
+   - Alternativa descartada (mas cara pero con aislamiento total): un
+     cluster de Postgres separado.
+
+4. Despliegue: app separada en DigitalOcean App Platform.
+   - NO va como un componente dentro de la app de joyeria.
+   - Va como una App NUEVA en DO App Platform, con su propio repo (este),
+     su propio proceso, sus propias variables de entorno, y
+     obras.donjoyero.com como dominio personalizado.
+
+5. Stack tecnologico (igual al de joyeria, por consistencia):
+   - Backend: Node.js + Express 5 + Prisma ORM + PostgreSQL. JS plano
+     (sin TypeScript). Auth con JWT + bcrypt.
+   - Frontend: React 18 + Vite. JS plano.
+
+ESTRUCTURA DEL PROYECTO
+------------------------
+obras/
+  backend/
+    prisma/schema.prisma   -> modelos Usuario, Proyecto, Avance
+    prisma/seed.js         -> crea usuario admin de prueba
+    src/app.js, index.js   -> servidor Express
+    src/controllers/       -> auth.controller.js, proyecto.controller.js
+    src/routes/            -> auth.routes.js, proyecto.routes.js
+    src/middleware/        -> auth.middleware.js, role.middleware.js, error.middleware.js
+    src/utils/              -> hash.js, jwt.js, prisma.js
+    .env.example           -> plantilla de variables de entorno
+  frontend/
+    src/App.jsx            -> pantalla de login (MVP, sin diseno final)
+    src/main.jsx, styles.css
+    vite.config.js          -> corre en puerto 5183
+  README.md                -> instrucciones de instalacion
+
+MODELO DE DATOS (MVP actual)
+-----------------------------
+Usuario: id, name, email, passwordHash, rol (ADMINISTRADOR | SUPERVISOR)
+Proyecto: id, nombre, descripcion, cliente, ubicacion, estado
+  (PLANIFICACION | EN_PROGRESO | PAUSADO | FINALIZADO | CANCELADO),
+  presupuesto, fechaInicio, fechaFinEstimada, responsable (Usuario)
+Avance: id, proyectoId, titulo, descripcion, porcentaje, imagenes[],
+  creadoPor (Usuario), createdAt
+
+Esto es un punto de partida razonable, pero NO se termino de conversar con
+el usuario que campos exactos necesita para el seguimiento de obra (fotos,
+reportes, checklist de tareas, roles adicionales tipo "cliente" que solo ve
+su proyecto, notificaciones, etc.). Conviene retomar esa conversacion antes
+de seguir construyendo pantallas.
+
+ESTADO ACTUAL (lo que YA esta hecho)
+--------------------------------------
+- Repo git inicializado en obras/ con 2 commits (scaffold inicial +
+  package-lock.json del backend).
+- Backend: dependencias instaladas (npm install), Prisma Client generado
+  y validado (sintaxis de todos los .js verificada con node -c).
+- Frontend: dependencias instaladas (npm install).
+- Endpoints funcionales (probados solo a nivel de codigo, no en runtime
+  contra una base de datos real todavia):
+  GET  /health
+  POST /api/auth/register
+  POST /api/auth/login
+  GET  /api/auth/me
+  GET  /api/proyectos
+  GET  /api/proyectos/:id
+  POST /api/proyectos            (solo ADMINISTRADOR)
+  PATCH /api/proyectos/:id       (solo ADMINISTRADOR)
+  DELETE /api/proyectos/:id      (solo ADMINISTRADOR)
+  GET  /api/proyectos/:id/avances
+  POST /api/proyectos/:id/avances
+
+PENDIENTE (proximos pasos, en orden)
+--------------------------------------
+1. Correr localmente contra una base de datos real:
+   - Hay Postgres corriendo en localhost:5432 en esta maquina (mismo
+     servicio que usa joyeria), pero NO se pudieron crear una base ni un
+     usuario nuevos para obras porque no se tienen las credenciales de
+     superusuario de ese Postgres local a mano.
+   - Falta: o bien el usuario da la contrasena del superusuario "postgres"
+     local para crear "obras_db" + un rol propio, o crea el usuario/base el
+     mismo con pgAdmin/psql, o se decide correr localmente directo contra
+     una base de prueba en el cluster de DO.
+2. Completar backend/.env (copiado de .env.example) con la DATABASE_URL
+   real y un JWT_SECRET propio (NUNCA reusar el JWT_SECRET ni las
+   credenciales de Postgres de joyeria).
+3. Correr la migracion inicial: npm run prisma:migrate -- --name init
+4. Correr el seed: npm run seed
+5. Levantar backend (npm run dev, puerto 4100) y frontend (npm run dev,
+   puerto 5183) y probar el login end-to-end en el navegador.
+6. Definir con el usuario el modelo de datos final (ver seccion anterior).
+7. Construir las pantallas reales del frontend (lista de proyectos, detalle,
+   registro de avances con fotos, etc.).
+8. Ya en produccion:
+   a. Crear "obras_db" + usuario propio en el cluster de Postgres de DO.
+   b. Crear una App nueva y separada en DigitalOcean App Platform apuntando
+      a este repo.
+   c. Configurar el dominio personalizado obras.donjoyero.com en esa app.
+   d. Agregar el registro DNS correspondiente para obras.donjoyero.com.
+   e. Cargar las variables de entorno de produccion (DATABASE_URL,
+      JWT_SECRET, etc.) solo en esa app, nunca compartidas con joyeria.
+
+CREDENCIALES DE PRUEBA (seed local, NO son de produccion)
+------------------------------------------------------------
+email: admin@obras.local
+password: Admin12345
+
+NOTAS DE SEGURIDAD
+-------------------
+- backend/.env.example es solo una plantilla, sin credenciales reales.
+- backend/.env (con credenciales reales) esta en .gitignore, nunca se
+  debe commitear.
+- El usuario de Postgres de obras_db debe ser distinto y con permisos
+  acotados solo a esa base, aunque comparta cluster con joyeria.
+- El JWT_SECRET de obras debe ser distinto al de joyeria (sesiones
+  independientes; un secreto compartido permitiria falsificar tokens
+  entre ambos sistemas).
