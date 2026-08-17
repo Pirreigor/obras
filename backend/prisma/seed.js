@@ -4,6 +4,26 @@ const bcrypt = require("bcryptjs");
 const prisma = new PrismaClient();
 
 async function main() {
+  const superadminEmail = "superadmin@obras.local";
+  const superadminPasswordHash = await bcrypt.hash("Superadmin12345", 10);
+
+  await prisma.usuario.upsert({
+    where: { email: superadminEmail },
+    update: {},
+    create: {
+      name: "Super Administrador",
+      email: superadminEmail,
+      passwordHash: superadminPasswordHash,
+      rol: "SUPERADMINISTRADOR",
+    },
+  });
+
+  const empresa = await prisma.empresa.upsert({
+    where: { nombre: "JJAM" },
+    update: {},
+    create: { nombre: "JJAM" },
+  });
+
   const adminEmail = "admin@obras.local";
   const adminPasswordHash = await bcrypt.hash("Admin12345", 10);
 
@@ -11,7 +31,8 @@ async function main() {
     where: { email: adminEmail },
     update: {},
     create: {
-      name: "Admin",
+      empresaId: empresa.id,
+      name: "Admin JJAM",
       email: adminEmail,
       passwordHash: adminPasswordHash,
       rol: "ADMINISTRADOR",

@@ -8,11 +8,15 @@ datasource db {
 }
 
 enum Rol {
+  // Sin empresaId: existe fuera de toda empresa, gestiona la plataforma.
+  SUPERADMINISTRADOR
   ADMINISTRADOR
   SUPERVISOR
+  RESIDENTE
+  CALIDAD_PRODUCCION
 }
 
-enum EstadoProyecto {
+enum EstadoObra {
   PLANIFICACION
   EN_PROGRESO
   PAUSADO
@@ -20,50 +24,286 @@ enum EstadoProyecto {
   CANCELADO
 }
 
+enum EstadoSubObra {
+  ACTIVA
+  PAUSADA
+  CERRADA
+}
+
+enum EstadoActividad {
+  PENDIENTE
+  EN_CURSO
+  HECHA
+}
+
+enum EstadoPedido {
+  SOLICITADO
+  APROBADO
+  COMPRADO_EN_CAMINO
+  RECIBIDO
+}
+
+enum EstadoInvitacion {
+  PENDIENTE
+  ACEPTADA
+  EXPIRADA
+  REVOCADA
+}
+
+model Empresa {
+  id     Int    @id @default(autoincrement())
+  nombre String @unique
+
+  usuarios            Usuario[]
+  zonas               Zona[]
+  actividadesCatalogo ActividadCatalogo[]
+  materialesCatalogo  MaterialCatalogo[]
+  invitaciones        Invitacion[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("empresas")
+}
+
 model Usuario {
-  id            Int        @id @default(autoincrement())
-  name          String
-  email         String     @unique
-  passwordHash  String
-  rol           Rol        @default(SUPERVISOR)
-  proyectos     Proyecto[] @relation("ProyectoResponsable")
-  avancesCreados Avance[]  @relation("AvanceCreadoPor")
-  createdAt     DateTime   @default(now())
-  updatedAt     DateTime   @updatedAt
+  id           Int      @id @default(autoincrement())
+  // null solo para SUPERADMINISTRADOR; todo otro rol pertenece a una empresa.
+  empresaId    Int?
+  empresa      Empresa? @relation(fields: [empresaId], references: [id], onDelete: Cascade)
+  name         String
+  email        String   @unique
+  passwordHash String
+  rol          Rol      @default(CALIDAD_PRODUCCION)
+
+  obrasComoResidente      Obra[]           @relation("ObraResidente")
+  subObrasComoResponsable SubObra[]        @relation("SubObraResponsableCalidad")
+  registrosDiarios        RegistroDiario[] @relation("RegistroDiarioCreadoPor")
+  avancesCreados          Avance[]         @relation("AvanceCreadoPor")
+  pedidosCreados          PedidoMaterial[] @relation("PedidoCreadoPor")
+  invitacionesEnviadas    Invitacion[]     @relation("InvitacionInvitadoPor")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@map("usuarios")
 }
 
-model Proyecto {
-  id                Int            @id @default(autoincrement())
-  nombre            String
-  descripcion       String?
-  cliente           String?
-  ubicacion         String?
-  estado            EstadoProyecto @default(PLANIFICACION)
-  presupuesto       Float?
-  fechaInicio       DateTime?
-  fechaFinEstimada  DateTime?
-  responsableId     Int?
-  responsable       Usuario?       @relation("ProyectoResponsable", fields: [responsableId], references: [id], onDelete: SetNull)
-  avances           Avance[]
-  createdAt         DateTime       @default(now())
-  updatedAt         DateTime       @updatedAt
+model Invitacion {
+  id            Int              @id @default(autoincrement())
+  empresaId     Int
+  empresa       Empresa          @relation(fields: [empresaId], references: [id], onDelete: Cascade)
+  email         String
+  // Restringido en la app a roles de empresa (nunca SUPERADMINISTRADOR).
+  rol           Rol
+  token         String           @unique
+  estado        EstadoInvitacion @default(PENDIENTE)
+  invitadoPorId Int?
+  invitadoPor   Usuario?         @relation("InvitacionInvitadoPor", fields: [invitadoPorId], references: [id], onDelete: SetNull)
+  expiresAt     DateTime
 
-  @@map("proyectos")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("invitaciones")
+}
+
+model Zona {
+  id        Int     @id @default(autoincrement())
+  empresaId Int
+  empresa   Empresa @relation(fields: [empresaId], references: [id], onDelete: Cascade)
+  nombre    String
+
+  localidades Localidad[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([empresaId, nombre])
+  @@map("zonas")
+}
+
+model Localidad {
+  id     Int    @id @default(autoincrement())
+  zonaId Int
+  zona   Zona   @relation(fields: [zonaId], references: [id], onDelete: Cascade)
+  nombre String
+
+  obras Obra[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("localidades")
+}
+
+model Obra {
+  id               Int        @id @default(autoincrement())
+  localidadId      Int
+  localidad        Localidad  @relation(fields: [localidadId], references: [id], onDelete: Cascade)
+  nombre           String
+  descripcion      String?
+  cliente          String?
+  direccion        String?
+  estado           EstadoObra @default(PLANIFICACION)
+  presupuesto      Float?
+  fechaInicio      DateTime?
+  fechaFinEstimada DateTime?
+  residenteId      Int?
+  residente        Usuario?   @relation("ObraResidente", fields: [residenteId], references: [id], onDelete: SetNull)
+
+  subObras SubObra[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("obras")
+}
+
+model SubObra {
+  id                   Int           @id @default(autoincrement())
+  obraId               Int
+  obra                 Obra          @relation(fields: [obraId], references: [id], onDelete: Cascade)
+  nombre               String
+  descripcion          String?
+  estado               EstadoSubObra @default(ACTIVA)
+  responsableCalidadId Int?
+  responsableCalidad   Usuario?      @relation("SubObraResponsableCalidad", fields: [responsableCalidadId], references: [id], onDelete: SetNull)
+
+  actividadesProgramadas ActividadProgramada[]
+  avances                Avance[]
+  pedidoItems            PedidoItemSubObra[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("sub_obras")
+}
+
+model ActividadCatalogo {
+  id        Int     @id @default(autoincrement())
+  empresaId Int
+  empresa   Empresa @relation(fields: [empresaId], references: [id], onDelete: Cascade)
+  nombre    String
+  unidad    String?
+
+  actividadesProgramadas ActividadProgramada[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([empresaId, nombre])
+  @@map("actividades_catalogo")
+}
+
+model ActividadProgramada {
+  id                  Int               @id @default(autoincrement())
+  subObraId           Int
+  subObra             SubObra           @relation(fields: [subObraId], references: [id], onDelete: Cascade)
+  actividadCatalogoId Int
+  actividadCatalogo   ActividadCatalogo @relation(fields: [actividadCatalogoId], references: [id], onDelete: Restrict)
+  fechaInicioPlan     DateTime?
+  fechaFinPlan        DateTime?
+  estado              EstadoActividad   @default(PENDIENTE)
+
+  registrosDiarios RegistroDiario[]
+  avances          Avance[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("actividades_programadas")
+}
+
+model RegistroDiario {
+  id                    Int                 @id @default(autoincrement())
+  actividadProgramadaId Int
+  actividadProgramada   ActividadProgramada @relation(fields: [actividadProgramadaId], references: [id], onDelete: Cascade)
+  fecha                 DateTime
+  comentario            String?
+  creadoPorId           Int?
+  creadoPor             Usuario?            @relation("RegistroDiarioCreadoPor", fields: [creadoPorId], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+
+  @@unique([actividadProgramadaId, fecha])
+  @@map("registros_diarios")
 }
 
 model Avance {
-  id           Int      @id @default(autoincrement())
-  proyectoId   Int
-  proyecto     Proyecto @relation(fields: [proyectoId], references: [id], onDelete: Cascade)
-  titulo       String
-  descripcion  String?
-  porcentaje   Int      @default(0)
-  imagenes     String[] @default([])
-  creadoPorId  Int?
-  creadoPor    Usuario? @relation("AvanceCreadoPor", fields: [creadoPorId], references: [id], onDelete: SetNull)
-  createdAt    DateTime @default(now())
+  id                    Int                  @id @default(autoincrement())
+  subObraId             Int
+  subObra               SubObra              @relation(fields: [subObraId], references: [id], onDelete: Cascade)
+  actividadProgramadaId Int?
+  actividadProgramada   ActividadProgramada? @relation(fields: [actividadProgramadaId], references: [id], onDelete: SetNull)
+  titulo                String
+  descripcion           String?
+  porcentaje            Int                  @default(0)
+  imagenes              String[]             @default([])
+  creadoPorId           Int?
+  creadoPor             Usuario?             @relation("AvanceCreadoPor", fields: [creadoPorId], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
 
   @@map("avances")
+}
+
+model MaterialCatalogo {
+  id           Int     @id @default(autoincrement())
+  empresaId    Int
+  empresa      Empresa @relation(fields: [empresaId], references: [id], onDelete: Cascade)
+  nombre       String
+  unidadMedida String
+
+  items PedidoMaterialItem[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([empresaId, nombre])
+  @@map("materiales_catalogo")
+}
+
+model PedidoMaterial {
+  id          Int          @id @default(autoincrement())
+  creadoPorId Int?
+  creadoPor   Usuario?     @relation("PedidoCreadoPor", fields: [creadoPorId], references: [id], onDelete: SetNull)
+  fecha       DateTime     @default(now())
+  urgente     Boolean      @default(false)
+  estado      EstadoPedido @default(SOLICITADO)
+
+  items PedidoMaterialItem[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("pedidos_material")
+}
+
+model PedidoMaterialItem {
+  id                 Int              @id @default(autoincrement())
+  pedidoId           Int
+  pedido             PedidoMaterial   @relation(fields: [pedidoId], references: [id], onDelete: Cascade)
+  materialCatalogoId Int
+  materialCatalogo   MaterialCatalogo @relation(fields: [materialCatalogoId], references: [id], onDelete: Restrict)
+  cantidadTotal      Float
+
+  subObras PedidoItemSubObra[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("pedido_material_items")
+}
+
+model PedidoItemSubObra {
+  id                   Int                @id @default(autoincrement())
+  pedidoMaterialItemId Int
+  pedidoMaterialItem   PedidoMaterialItem @relation(fields: [pedidoMaterialItemId], references: [id], onDelete: Cascade)
+  subObraId            Int
+  subObra              SubObra            @relation(fields: [subObraId], references: [id], onDelete: Cascade)
+  cantidadAsignada     Float
+
+  @@unique([pedidoMaterialItemId, subObraId])
+  @@map("pedido_item_sub_obras")
 }

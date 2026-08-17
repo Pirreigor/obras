@@ -33,11 +33,22 @@ DECISIONES TOMADAS (y por que)
    - Alternativa descartada (mas cara pero con aislamiento total): un
      cluster de Postgres separado.
 
-4. Despliegue: app separada en DigitalOcean App Platform.
-   - NO va como un componente dentro de la app de joyeria.
-   - Va como una App NUEVA en DO App Platform, con su propio repo (este),
-     su propio proceso, sus propias variables de entorno, y
-     obras.donjoyero.com como dominio personalizado.
+4. Despliegue: mismo Droplet que joyeria, carpeta y proceso separados.
+   - CORREGIDO 2026-08-17: joyeria NO esta en App Platform, esta en un
+     Droplet propio: ubuntu-s-1vcpu-1gb-nyc3, IP 104.131.19.189, NYC3,
+     Ubuntu 24.04, 1GB RAM / 25GB disco. Sirve con Nginx (+ probablemente
+     PM2) desde /var/www/joyeria.
+   - obras va en el MISMO Droplet (no se crea un Droplet nuevo), pero en
+     su propia carpeta /var/www/obras, con su propio proceso PM2 (puerto
+     distinto, ver backend/.env.example -> 4100) y su propio bloque de
+     server Nginx para obras.donjoyero.com (con su propio certificado
+     TLS via certbot).
+   - OJO: el Droplet es de 1GB de RAM. Correr joyeria + obras a la vez
+     (2 procesos Node) ahi puede ir justo de memoria; conviene monitorear
+     uso (free -h, pm2 monit) al desplegar y considerar upgrade de
+     Droplet si se ajusta.
+   - Pendiente confirmar: si joyeria realmente usa PM2 y en que puerto,
+     revisando la config del Droplet por SSH antes de desplegar obras.
 
 5. Stack tecnologico (igual al de joyeria, por consistencia):
    - Backend: Node.js + Express 5 + Prisma ORM + PostgreSQL. JS plano
@@ -119,14 +130,20 @@ PENDIENTE (proximos pasos, en orden)
 6. Definir con el usuario el modelo de datos final (ver seccion anterior).
 7. Construir las pantallas reales del frontend (lista de proyectos, detalle,
    registro de avances con fotos, etc.).
-8. Ya en produccion:
+8. Ya en produccion (Droplet ubuntu-s-1vcpu-1gb-nyc3, 104.131.19.189):
    a. Crear "obras_db" + usuario propio en el cluster de Postgres de DO.
-   b. Crear una App nueva y separada en DigitalOcean App Platform apuntando
-      a este repo.
-   c. Configurar el dominio personalizado obras.donjoyero.com en esa app.
-   d. Agregar el registro DNS correspondiente para obras.donjoyero.com.
-   e. Cargar las variables de entorno de produccion (DATABASE_URL,
-      JWT_SECRET, etc.) solo en esa app, nunca compartidas con joyeria.
+   b. Por SSH: crear /var/www/obras, clonar este repo ahi, npm install e
+      npm run build en frontend y backend.
+   c. Configurar PM2 para el backend de obras en un puerto propio
+      (distinto al de joyeria).
+   d. Agregar un nuevo server block de Nginx para obras.donjoyero.com
+      (proxy al puerto de PM2 de obras + estaticos del frontend build).
+   e. Agregar el registro DNS tipo A para obras.donjoyero.com apuntando a
+      104.131.19.189 (mismo droplet que joyeria).
+   f. Emitir certificado TLS para obras.donjoyero.com (certbot).
+   g. Cargar las variables de entorno de produccion (DATABASE_URL,
+      JWT_SECRET, etc.) solo en el .env de /var/www/obras, nunca
+      compartidas con joyeria.
 
 CREDENCIALES DE PRUEBA (seed local, NO son de produccion)
 ------------------------------------------------------------

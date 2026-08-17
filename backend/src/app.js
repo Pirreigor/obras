@@ -2,7 +2,11 @@ const express = require("express");
 const cors = require("cors");
 
 const authRoutes = require("./routes/auth.routes");
-const proyectoRoutes = require("./routes/proyecto.routes");
+const empresaRoutes = require("./routes/empresa.routes");
+const usuarioRoutes = require("./routes/usuario.routes");
+const zonaRoutes = require("./routes/zona.routes");
+const obraRoutes = require("./routes/obra.routes");
+const subObraRoutes = require("./routes/subObra.routes");
 
 const { notFoundHandler, errorHandler } = require("./middleware/error.middleware");
 
@@ -16,7 +20,11 @@ app.get("/health", (req, res) => {
 });
 
 app.use("/api/auth", authRoutes);
-app.use("/api/proyectos", proyectoRoutes);
+app.use("/api/empresas", empresaRoutes);
+app.use("/api/usuarios", usuarioRoutes);
+app.use("/api/zonas", zonaRoutes);
+app.use("/api/obras", obraRoutes);
+app.use("/api/sub-obras", subObraRoutes);
 
 app.use(notFoundHandler);
 app.use(errorHandler);
