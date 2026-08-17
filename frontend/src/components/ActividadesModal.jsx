@@ -3,17 +3,22 @@ import { apiFetch } from "../api";
 import Modal from "./Modal";
 
 const NUEVA = "__nueva__";
-const TAREA_FORM_INICIAL = { actividadCatalogoId: "", actividadCatalogoNombre: "", fechaInicioPlan: "", fechaFinPlan: "" };
+const ACTIVIDAD_FORM_INICIAL = {
+  actividadCatalogoId: "",
+  actividadCatalogoNombre: "",
+  fechaInicioPlan: "",
+  fechaFinPlan: "",
+};
 
-function TareasModal({ subObra, puedeCrear, puedeMarcarUrgente, onClose }) {
-  const [tareas, setTareas] = useState([]);
+function ActividadesModal({ subObra, puedeCrear, puedeMarcarUrgente, onClose }) {
+  const [actividades, setActividades] = useState([]);
   const [catalogo, setCatalogo] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [urgenteEnCurso, setUrgenteEnCurso] = useState(null);
 
   const [mostrarForm, setMostrarForm] = useState(false);
-  const [form, setForm] = useState(TAREA_FORM_INICIAL);
+  const [form, setForm] = useState(ACTIVIDAD_FORM_INICIAL);
   const [formError, setFormError] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
@@ -26,8 +31,8 @@ function TareasModal({ subObra, puedeCrear, puedeMarcarUrgente, onClose }) {
         if (puedeCrear) {
           peticiones.push(apiFetch("/api/actividades-catalogo"));
         }
-        const [tareasRes, catalogoRes] = await Promise.all(peticiones);
-        setTareas(tareasRes.actividades);
+        const [actividadesRes, catalogoRes] = await Promise.all(peticiones);
+        setActividades(actividadesRes.actividades);
         if (catalogoRes) {
           setCatalogo(catalogoRes.catalogo);
         }
@@ -40,15 +45,15 @@ function TareasModal({ subObra, puedeCrear, puedeMarcarUrgente, onClose }) {
     load();
   }, [subObra.id, puedeCrear]);
 
-  async function toggleUrgente(tarea) {
-    setUrgenteEnCurso(tarea.id);
+  async function toggleUrgente(actividad) {
+    setUrgenteEnCurso(actividad.id);
     setError("");
     try {
-      const data = await apiFetch(`/api/sub-obras/${subObra.id}/actividades/${tarea.id}`, {
+      const data = await apiFetch(`/api/sub-obras/${subObra.id}/actividades/${actividad.id}`, {
         method: "PATCH",
-        body: JSON.stringify({ urgente: !tarea.urgente }),
+        body: JSON.stringify({ urgente: !actividad.urgente }),
       });
-      setTareas((prev) => prev.map((t) => (t.id === tarea.id ? data.actividad : t)));
+      setActividades((prev) => prev.map((a) => (a.id === actividad.id ? data.actividad : a)));
     } catch (err) {
       setError(err.message);
     } finally {
@@ -57,7 +62,7 @@ function TareasModal({ subObra, puedeCrear, puedeMarcarUrgente, onClose }) {
   }
 
   function handleOpenForm() {
-    setForm(TAREA_FORM_INICIAL);
+    setForm(ACTIVIDAD_FORM_INICIAL);
     setFormError("");
     setMostrarForm(true);
   }
@@ -73,20 +78,20 @@ function TareasModal({ subObra, puedeCrear, puedeMarcarUrgente, onClose }) {
       };
       if (form.actividadCatalogoId === NUEVA) {
         if (!form.actividadCatalogoNombre.trim()) {
-          throw new Error("Falta el nombre de la tarea nueva");
+          throw new Error("Falta el nombre de la actividad nueva");
         }
         body.actividadCatalogoNombre = form.actividadCatalogoNombre.trim();
       } else if (form.actividadCatalogoId) {
         body.actividadCatalogoId = form.actividadCatalogoId;
       } else {
-        throw new Error("Elegi una tarea del catalogo o crea una nueva");
+        throw new Error("Elegi una actividad del catalogo o crea una nueva");
       }
 
       const data = await apiFetch(`/api/sub-obras/${subObra.id}/actividades`, {
         method: "POST",
         body: JSON.stringify(body),
       });
-      setTareas((prev) => [data.actividad, ...prev]);
+      setActividades((prev) => [data.actividad, ...prev]);
       setMostrarForm(false);
     } catch (err) {
       setFormError(err.message);
@@ -96,26 +101,26 @@ function TareasModal({ subObra, puedeCrear, puedeMarcarUrgente, onClose }) {
   }
 
   return (
-    <Modal title={`Tareas de ${subObra.nombre}`} onClose={onClose}>
+    <Modal title={`Actividades de ${subObra.nombre}`} onClose={onClose}>
       {puedeCrear && (
         <div className="panel-card-header">
-          <span className="muted">{tareas.length} tarea(s)</span>
+          <span className="muted">{actividades.length} actividad(es)</span>
           <button className="btn-small" type="button" onClick={handleOpenForm}>
-            + Nueva tarea
+            + Nueva actividad
           </button>
         </div>
       )}
       {error && <div className="form-error">{error}</div>}
       {loading ? (
         <p className="muted">Cargando...</p>
-      ) : tareas.length === 0 ? (
-        <p className="muted">Todavia no hay tareas.</p>
+      ) : actividades.length === 0 ? (
+        <p className="muted">Todavia no hay actividades.</p>
       ) : (
         <div className="table-scroll">
           <table className="data-table">
             <thead>
               <tr>
-                <th>Tarea</th>
+                <th>Actividad</th>
                 <th>Plan inicio</th>
                 <th>Plan fin</th>
                 <th>Estado</th>
@@ -123,25 +128,25 @@ function TareasModal({ subObra, puedeCrear, puedeMarcarUrgente, onClose }) {
               </tr>
             </thead>
             <tbody>
-              {tareas.map((tarea) => (
-                <tr key={tarea.id}>
-                  <td>{tarea.actividadCatalogo?.nombre}</td>
-                  <td>{tarea.fechaInicioPlan ? new Date(tarea.fechaInicioPlan).toLocaleDateString() : "-"}</td>
-                  <td>{tarea.fechaFinPlan ? new Date(tarea.fechaFinPlan).toLocaleDateString() : "-"}</td>
+              {actividades.map((actividad) => (
+                <tr key={actividad.id}>
+                  <td>{actividad.actividadCatalogo?.nombre}</td>
+                  <td>{actividad.fechaInicioPlan ? new Date(actividad.fechaInicioPlan).toLocaleDateString() : "-"}</td>
+                  <td>{actividad.fechaFinPlan ? new Date(actividad.fechaFinPlan).toLocaleDateString() : "-"}</td>
                   <td>
-                    <span className="role-pill">{tarea.estado}</span>
+                    <span className="role-pill">{actividad.estado}</span>
                   </td>
                   <td>
                     {puedeMarcarUrgente ? (
                       <button
-                        className={tarea.urgente ? "urgente-pill urgente-pill-clickable" : "btn-link"}
+                        className={actividad.urgente ? "urgente-pill urgente-pill-clickable" : "btn-link"}
                         type="button"
-                        onClick={() => toggleUrgente(tarea)}
-                        disabled={urgenteEnCurso === tarea.id}
+                        onClick={() => toggleUrgente(actividad)}
+                        disabled={urgenteEnCurso === actividad.id}
                       >
-                        {tarea.urgente ? "Urgente" : "Marcar urgente"}
+                        {actividad.urgente ? "Urgente" : "Marcar urgente"}
                       </button>
-                    ) : tarea.urgente ? (
+                    ) : actividad.urgente ? (
                       <span className="urgente-pill">Urgente</span>
                     ) : (
                       "-"
@@ -155,32 +160,32 @@ function TareasModal({ subObra, puedeCrear, puedeMarcarUrgente, onClose }) {
       )}
 
       {mostrarForm && (
-        <Modal title="Nueva tarea" onClose={() => setMostrarForm(false)}>
+        <Modal title="Nueva actividad" onClose={() => setMostrarForm(false)}>
           {formError && <div className="form-error">{formError}</div>}
           <form className="stacked-form" onSubmit={handleSubmit}>
             <div className="field">
-              <label htmlFor="tareaCatalogo">Tarea</label>
+              <label htmlFor="actividadCatalogo">Actividad</label>
               <select
-                id="tareaCatalogo"
+                id="actividadCatalogo"
                 value={form.actividadCatalogoId}
                 onChange={(e) => setForm({ ...form, actividadCatalogoId: e.target.value })}
                 required
               >
-                <option value="">Selecciona una tarea</option>
+                <option value="">Selecciona una actividad</option>
                 {catalogo.map((item) => (
                   <option key={item.id} value={item.id}>
                     {item.nombre}
                   </option>
                 ))}
-                <option value={NUEVA}>+ Crear tarea nueva</option>
+                <option value={NUEVA}>+ Crear actividad nueva</option>
               </select>
             </div>
 
             {form.actividadCatalogoId === NUEVA && (
               <div className="field">
-                <label htmlFor="tareaNueva">Nombre de la tarea nueva</label>
+                <label htmlFor="actividadNueva">Nombre de la actividad nueva</label>
                 <input
-                  id="tareaNueva"
+                  id="actividadNueva"
                   value={form.actividadCatalogoNombre}
                   onChange={(e) => setForm({ ...form, actividadCatalogoNombre: e.target.value })}
                   required
@@ -189,9 +194,9 @@ function TareasModal({ subObra, puedeCrear, puedeMarcarUrgente, onClose }) {
             )}
 
             <div className="field">
-              <label htmlFor="tareaInicio">Fecha planificada de inicio</label>
+              <label htmlFor="actividadInicio">Fecha planificada de inicio</label>
               <input
-                id="tareaInicio"
+                id="actividadInicio"
                 type="date"
                 value={form.fechaInicioPlan}
                 onChange={(e) => setForm({ ...form, fechaInicioPlan: e.target.value })}
@@ -199,9 +204,9 @@ function TareasModal({ subObra, puedeCrear, puedeMarcarUrgente, onClose }) {
             </div>
 
             <div className="field">
-              <label htmlFor="tareaFin">Fecha planificada de fin</label>
+              <label htmlFor="actividadFin">Fecha planificada de fin</label>
               <input
-                id="tareaFin"
+                id="actividadFin"
                 type="date"
                 value={form.fechaFinPlan}
                 onChange={(e) => setForm({ ...form, fechaFinPlan: e.target.value })}
@@ -209,7 +214,7 @@ function TareasModal({ subObra, puedeCrear, puedeMarcarUrgente, onClose }) {
             </div>
 
             <button className="btn-primary" type="submit" disabled={submitting}>
-              {submitting ? "Creando..." : "Crear tarea"}
+              {submitting ? "Creando..." : "Crear actividad"}
             </button>
           </form>
         </Modal>
@@ -218,4 +223,4 @@ function TareasModal({ subObra, puedeCrear, puedeMarcarUrgente, onClose }) {
   );
 }
 
-export default TareasModal;
+export default ActividadesModal;

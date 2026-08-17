@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { apiFetch } from "../api";
 import Modal from "./Modal";
-import TareasModal from "./TareasModal";
+import ActividadesModal from "./ActividadesModal";
 
 const NUEVA = "__nueva__";
 const FORM_INICIAL = {
@@ -20,7 +20,7 @@ const FORM_INICIAL = {
 const SUB_OBRA_FORM_INICIAL = { nombre: "", descripcion: "", responsableCalidadId: "", residenteIds: [] };
 
 function ObrasPanel({ currentUser }) {
-  const puedeCrearTareas = currentUser?.rol === "ADMINISTRADOR";
+  const puedeCrearActividades = currentUser?.rol === "ADMINISTRADOR";
   const [obras, setObras] = useState([]);
   const [zonas, setZonas] = useState([]);
   const [localidadesPorZona, setLocalidadesPorZona] = useState({});
@@ -40,7 +40,7 @@ function ObrasPanel({ currentUser }) {
   const [submittingSubObra, setSubmittingSubObra] = useState(false);
   const [mostrarModalSubObras, setMostrarModalSubObras] = useState(false);
   const [mostrarModalSubObra, setMostrarModalSubObra] = useState(false);
-  const [subObraParaTareas, setSubObraParaTareas] = useState(null);
+  const [subObraParaActividades, setSubObraParaActividades] = useState(null);
 
   async function loadObras() {
     setLoading(true);
@@ -282,7 +282,7 @@ function ObrasPanel({ currentUser }) {
             <p className="muted">Todavia no hay sub-obras.</p>
           ) : (
             <>
-              <p className="muted">Toca una sub-obra para ver sus tareas.</p>
+              <p className="muted">Toca una sub-obra para ver sus actividades.</p>
               <div className="table-scroll">
                 <table className="data-table">
                   <thead>
@@ -295,7 +295,7 @@ function ObrasPanel({ currentUser }) {
                   </thead>
                   <tbody>
                     {subObras.map((subObra) => (
-                      <tr key={subObra.id} className="row-clickable" onClick={() => setSubObraParaTareas(subObra)}>
+                      <tr key={subObra.id} className="row-clickable" onClick={() => setSubObraParaActividades(subObra)}>
                         <td>{subObra.nombre}</td>
                         <td>
                           <span className="role-pill">{subObra.estado}</span>
@@ -509,12 +509,12 @@ function ObrasPanel({ currentUser }) {
         </Modal>
       )}
 
-      {subObraParaTareas && (
-        <TareasModal
-          subObra={subObraParaTareas}
-          puedeCrear={puedeCrearTareas}
+      {subObraParaActividades && (
+        <ActividadesModal
+          subObra={subObraParaActividades}
+          puedeCrear={puedeCrearActividades}
           puedeMarcarUrgente
-          onClose={() => setSubObraParaTareas(null)}
+          onClose={() => setSubObraParaActividades(null)}
         />
       )}
     </>

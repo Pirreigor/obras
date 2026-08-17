@@ -55,7 +55,7 @@ function AvanceForm({ fecha, actividades, onSaved, onError }) {
   async function handleSubmit(e) {
     e.preventDefault();
     if (!actividadProgramadaId) {
-      onError("Elegi una tarea");
+      onError("Elegi una actividad");
       return;
     }
     const actividad = actividades.find((a) => String(a.id) === String(actividadProgramadaId));
@@ -84,14 +84,14 @@ function AvanceForm({ fecha, actividades, onSaved, onError }) {
   return (
     <form className="stacked-form" onSubmit={handleSubmit}>
       <div className="field">
-        <label htmlFor="avanceTarea">Tarea</label>
+        <label htmlFor="avanceActividad">Actividad</label>
         <select
-          id="avanceTarea"
+          id="avanceActividad"
           value={actividadProgramadaId}
           onChange={(e) => setActividadProgramadaId(e.target.value)}
           required
         >
-          <option value="">Selecciona una tarea</option>
+          <option value="">Selecciona una actividad</option>
           {actividades.map((a) => (
             <option key={a.id} value={a.id}>
               {a.subObra.nombre} &middot; {a.actividadCatalogo?.nombre}
@@ -203,7 +203,7 @@ function CalendarioPanel() {
       </div>
 
       {actividades.length === 0 ? (
-        <p className="muted">Todavia no tenes tareas asignadas en tus sub-obras.</p>
+        <p className="muted">Todavia no tenes actividades asignadas en tus sub-obras.</p>
       ) : (
         <div className="calendar-grid">
           {DIAS_SEMANA.map((dia, i) => (
