@@ -7,6 +7,8 @@
   --accent: #c8571b;
   --accent-hover: #ad4712;
   --error: #b3261e;
+  --info: #3d6f96;
+  --info-bg: #e7f0f6;
   --hero-bg: #0d2745;
   --hero-ink: #dceef4;
   --hero-ink-soft: #8fb4c9;
@@ -408,8 +410,27 @@ body {
   opacity: 0.5;
 }
 
-.calendar-day-marcado {
+.calendar-day-programado {
+  background: var(--info-bg);
+  border-color: var(--info);
+  border-width: 2px;
+}
+
+.calendar-day-programado::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 5px;
+  background: var(--info);
+  border-radius: 7px 7px 0 0;
+}
+
+.calendar-day-marcado,
+.calendar-day-marcado.calendar-day-programado {
   border-color: var(--accent);
+  border-width: 2px;
   background: var(--paper);
 }
 
@@ -420,17 +441,6 @@ body {
   height: 6px;
   border-radius: 50%;
   background: var(--accent);
-}
-
-.calendar-day-programado::before {
-  content: "";
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 3px;
-  background: var(--ink-soft);
-  border-radius: 8px 8px 0 0;
 }
 
 .calendar-legend {
@@ -457,7 +467,16 @@ body {
 }
 
 .calendar-legend-programado {
-  border-top: 3px solid var(--ink-soft);
+  background: var(--info-bg);
+  border-color: var(--info);
+  border-width: 2px;
+}
+
+.calendar-dia-detalle {
+  padding: 18px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
 }
 
 .calendar-legend-marcado {

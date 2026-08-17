@@ -205,6 +205,48 @@ function AvanceForm({ fecha, actividades, subObras, onSaved, onError }) {
   );
 }
 
+function DetalleDia({ fecha, programadas, avances, subObras, actividades, onSaved, formError, setFormError }) {
+  return (
+    <>
+      {programadas.length > 0 && (
+        <div className="vista-block">
+          <h3>Actividades programadas este dia</h3>
+          <div className="vista-checklist">
+            {programadas.map((a) => (
+              <div key={a.id} className="muted">
+                {a.subObra.nombre} &middot; {a.actividadCatalogo?.nombre}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+      {avances.length > 0 && (
+        <div className="vista-block">
+          <h3>Ya registrado ese dia</h3>
+          <div className="vista-checklist">
+            {avances.map((a) => (
+              <div key={a.id} className="muted">
+                {a.actividad.subObra.nombre} &middot; {a.actividad.actividadCatalogo?.nombre} &mdash; {a.porcentaje}%
+                {a.descripcion ? `: ${a.descripcion}` : ""}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+      {formError && <div className="form-error">{formError}</div>}
+      <div className="vista-block">
+        <AvanceForm
+          fecha={fecha}
+          actividades={actividades}
+          subObras={subObras}
+          onSaved={onSaved}
+          onError={setFormError}
+        />
+      </div>
+    </>
+  );
+}
+
 function CalendarioPanel() {
   const [actividades, setActividades] = useState([]);
   const [subObras, setSubObras] = useState([]);
@@ -254,9 +296,13 @@ function CalendarioPanel() {
   }, [actividades]);
 
   const dias = useMemo(() => {
-    return vista === "mes"
-      ? buildMesGrid(fechaReferencia.getFullYear(), fechaReferencia.getMonth())
-      : buildSemanaGrid(fechaReferencia);
+    if (vista === "mes") {
+      return buildMesGrid(fechaReferencia.getFullYear(), fechaReferencia.getMonth());
+    }
+    if (vista === "semana") {
+      return buildSemanaGrid(fechaReferencia);
+    }
+    return [fechaReferencia];
   }, [vista, fechaReferencia]);
 
   function moverPeriodo(delta) {
@@ -264,8 +310,13 @@ function CalendarioPanel() {
       if (vista === "mes") {
         return new Date(prev.getFullYear(), prev.getMonth() + delta, 1);
       }
+      if (vista === "semana") {
+        const siguiente = new Date(prev);
+        siguiente.setDate(prev.getDate() + delta * 7);
+        return siguiente;
+      }
       const siguiente = new Date(prev);
-      siguiente.setDate(prev.getDate() + delta * 7);
+      siguiente.setDate(prev.getDate() + delta);
       return siguiente;
     });
   }
@@ -287,10 +338,15 @@ function CalendarioPanel() {
   const avancesDelDia = diaKey ? avancesPorDia[diaKey] || [] : [];
   const programadasDelDia = diaKey ? actividades.filter((a) => estaProgramadaEseDia(a, diaKey)) : [];
 
+  const diaActualKey = toKey(fechaReferencia);
+  const avancesDiaActual = avancesPorDia[diaActualKey] || [];
+  const programadasDiaActual = actividades.filter((a) => estaProgramadaEseDia(a, diaActualKey));
+
   const etiquetaPeriodo =
     vista === "mes"
       ? `${MESES[fechaReferencia.getMonth()]} ${fechaReferencia.getFullYear()}`
-      : (() => {
+      : vista === "semana"
+      ? (() => {
           const semana = buildSemanaGrid(fechaReferencia);
           const primero = semana[0];
           const ultimo = semana[6];
@@ -298,7 +354,8 @@ function CalendarioPanel() {
           return mismomes
             ? `${primero.getDate()} - ${ultimo.getDate()} de ${MESES[primero.getMonth()]} ${primero.getFullYear()}`
             : `${primero.getDate()} de ${MESES[primero.getMonth()]} - ${ultimo.getDate()} de ${MESES[ultimo.getMonth()]}`;
-        })();
+        })()
+      : `${fechaReferencia.getDate()} de ${MESES[fechaReferencia.getMonth()]} ${fechaReferencia.getFullYear()}`;
 
   return (
     <div>
@@ -320,6 +377,13 @@ function CalendarioPanel() {
             >
               Semana
             </button>
+            <button
+              className={vista === "dia" ? "active" : ""}
+              type="button"
+              onClick={() => setVista("dia")}
+            >
+              Dia
+            </button>
           </div>
           <button className="btn-small" type="button" onClick={() => moverPeriodo(-1)}>
             &larr;
@@ -332,6 +396,19 @@ function CalendarioPanel() {
 
       {subObras.length === 0 ? (
         <p className="muted">Todavia no tenes sub-obras asignadas.</p>
+      ) : vista === "dia" ? (
+        <div className="calendar-dia-detalle">
+          <DetalleDia
+            fecha={diaActualKey}
+            programadas={programadasDiaActual}
+            avances={avancesDiaActual}
+            subObras={subObras}
+            actividades={actividades}
+            onSaved={handleAvanceGuardado}
+            formError={formError}
+            setFormError={setFormError}
+          />
+        </div>
       ) : (
         <div className={vista === "mes" ? "calendar-grid" : "calendar-grid calendar-grid-semana"}>
           {DIAS_SEMANA.map((dia, i) => (
@@ -364,55 +441,32 @@ function CalendarioPanel() {
         </div>
       )}
 
-      <div className="calendar-legend">
-        <span>
-          <span className="calendar-legend-swatch calendar-legend-programado" /> Actividad programada
-        </span>
-        <span>
-          <span className="calendar-legend-swatch calendar-legend-marcado" /> Avance registrado
-        </span>
-      </div>
+      {vista !== "dia" && (
+        <div className="calendar-legend">
+          <span>
+            <span className="calendar-legend-swatch calendar-legend-programado" /> Actividad programada
+          </span>
+          <span>
+            <span className="calendar-legend-swatch calendar-legend-marcado" /> Avance registrado
+          </span>
+        </div>
+      )}
 
       {diaSeleccionado && (
         <Modal
           title={`Avance del ${diaSeleccionado.getDate()} de ${MESES[diaSeleccionado.getMonth()]}`}
           onClose={() => setDiaSeleccionado(null)}
         >
-          {programadasDelDia.length > 0 && (
-            <div className="vista-block">
-              <h3>Actividades programadas este dia</h3>
-              <div className="vista-checklist">
-                {programadasDelDia.map((a) => (
-                  <div key={a.id} className="muted">
-                    {a.subObra.nombre} &middot; {a.actividadCatalogo?.nombre}
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-          {avancesDelDia.length > 0 && (
-            <div className="vista-block">
-              <h3>Ya registrado ese dia</h3>
-              <div className="vista-checklist">
-                {avancesDelDia.map((a) => (
-                  <div key={a.id} className="muted">
-                    {a.actividad.subObra.nombre} &middot; {a.actividad.actividadCatalogo?.nombre} &mdash; {a.porcentaje}%
-                    {a.descripcion ? `: ${a.descripcion}` : ""}
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-          {formError && <div className="form-error">{formError}</div>}
-          <div className="vista-block">
-            <AvanceForm
-              fecha={toKey(diaSeleccionado)}
-              actividades={actividades}
-              subObras={subObras}
-              onSaved={handleAvanceGuardado}
-              onError={setFormError}
-            />
-          </div>
+          <DetalleDia
+            fecha={toKey(diaSeleccionado)}
+            programadas={programadasDelDia}
+            avances={avancesDelDia}
+            subObras={subObras}
+            actividades={actividades}
+            onSaved={handleAvanceGuardado}
+            formError={formError}
+            setFormError={setFormError}
+          />
         </Modal>
       )}
     </div>
