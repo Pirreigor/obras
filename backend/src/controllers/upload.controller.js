@@ -1,5 +1,4 @@
-const path = require("path");
-const { evidenciaDisponible, subirEvidencia } = require("../utils/spaces");
+const { evidenciaDisponible, subirEvidencia } = require("../utils/evidencia");
 
 async function subirArchivo(req, res) {
   if (!evidenciaDisponible()) {
@@ -10,8 +9,7 @@ async function subirArchivo(req, res) {
     return res.status(400).json({ message: "Falta el archivo" });
   }
 
-  const extension = path.extname(req.file.originalname).replace(".", "").toLowerCase();
-  const url = await subirEvidencia({ buffer: req.file.buffer, mimetype: req.file.mimetype, extension });
+  const url = await subirEvidencia({ buffer: req.file.buffer });
 
   return res.status(201).json({ url });
 }
