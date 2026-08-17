@@ -1,4 +1,6 @@
-const API_URL = import.meta.env.VITE_API_URL || "http://localhost:4100";
+// En build de produccion sin VITE_API_URL, usa rutas relativas al mismo
+// dominio (Nginx proxya /api/ al backend). En dev, apunta al backend local.
+const API_URL = import.meta.env.VITE_API_URL ?? (import.meta.env.PROD ? "" : "http://localhost:4100");
 
 async function apiFetch(path, options = {}) {
   const token = localStorage.getItem("obras_token");
