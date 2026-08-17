@@ -26,14 +26,14 @@ function toKey(date) {
   return `${y}-${m}-${d}`;
 }
 
-// Las fechas de Avance llegan como fecha-hora UTC de un dia sin hora
+// Las fechas de Avance/plan llegan como fecha-hora UTC de un dia sin hora
 // (ej. "2026-08-20T00:00:00.000Z"); tomar los primeros 10 caracteres
 // evita que el desfasaje horario del navegador corra el dia.
 function keyFromIso(iso) {
   return iso.slice(0, 10);
 }
 
-function buildGrid(year, month) {
+function buildMesGrid(year, month) {
   const primerDia = new Date(year, month, 1);
   const offset = (primerDia.getDay() + 6) % 7; // semana arranca en lunes
   const inicio = new Date(year, month, 1 - offset);
@@ -45,6 +45,34 @@ function buildGrid(year, month) {
     dias.push(dia);
   }
   return dias;
+}
+
+function buildSemanaGrid(referencia) {
+  const offset = (referencia.getDay() + 6) % 7;
+  const inicio = new Date(referencia.getFullYear(), referencia.getMonth(), referencia.getDate() - offset);
+
+  const dias = [];
+  for (let i = 0; i < 7; i++) {
+    const dia = new Date(inicio);
+    dia.setDate(inicio.getDate() + i);
+    dias.push(dia);
+  }
+  return dias;
+}
+
+// Una actividad se considera "programada" ese dia si cae dentro de
+// [fechaInicioPlan, fechaFinPlan]. Si solo tiene una de las dos fechas,
+// se toma como un plan de un solo dia.
+function estaProgramadaEseDia(actividad, diaKey) {
+  const inicio = actividad.fechaInicioPlan ? keyFromIso(actividad.fechaInicioPlan) : null;
+  const fin = actividad.fechaFinPlan ? keyFromIso(actividad.fechaFinPlan) : null;
+  if (!inicio && !fin) {
+    return false;
+  }
+  if (inicio && fin) {
+    return diaKey >= inicio && diaKey <= fin;
+  }
+  return diaKey === (inicio || fin);
 }
 
 function AvanceForm({ fecha, actividades, subObras, onSaved, onError }) {
@@ -182,9 +210,10 @@ function CalendarioPanel() {
   const [subObras, setSubObras] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [mesActual, setMesActual] = useState(() => {
+  const [vista, setVista] = useState("mes");
+  const [fechaReferencia, setFechaReferencia] = useState(() => {
     const hoy = new Date();
-    return new Date(hoy.getFullYear(), hoy.getMonth(), 1);
+    return new Date(hoy.getFullYear(), hoy.getMonth(), hoy.getDate());
   });
   const [diaSeleccionado, setDiaSeleccionado] = useState(null);
   const [formError, setFormError] = useState("");
@@ -224,10 +253,21 @@ function CalendarioPanel() {
     return map;
   }, [actividades]);
 
-  const dias = useMemo(() => buildGrid(mesActual.getFullYear(), mesActual.getMonth()), [mesActual]);
+  const dias = useMemo(() => {
+    return vista === "mes"
+      ? buildMesGrid(fechaReferencia.getFullYear(), fechaReferencia.getMonth())
+      : buildSemanaGrid(fechaReferencia);
+  }, [vista, fechaReferencia]);
 
-  function cambiarMes(delta) {
-    setMesActual((prev) => new Date(prev.getFullYear(), prev.getMonth() + delta, 1));
+  function moverPeriodo(delta) {
+    setFechaReferencia((prev) => {
+      if (vista === "mes") {
+        return new Date(prev.getFullYear(), prev.getMonth() + delta, 1);
+      }
+      const siguiente = new Date(prev);
+      siguiente.setDate(prev.getDate() + delta * 7);
+      return siguiente;
+    });
   }
 
   function handleAvanceGuardado() {
@@ -245,18 +285,46 @@ function CalendarioPanel() {
 
   const diaKey = diaSeleccionado ? toKey(diaSeleccionado) : null;
   const avancesDelDia = diaKey ? avancesPorDia[diaKey] || [] : [];
+  const programadasDelDia = diaKey ? actividades.filter((a) => estaProgramadaEseDia(a, diaKey)) : [];
+
+  const etiquetaPeriodo =
+    vista === "mes"
+      ? `${MESES[fechaReferencia.getMonth()]} ${fechaReferencia.getFullYear()}`
+      : (() => {
+          const semana = buildSemanaGrid(fechaReferencia);
+          const primero = semana[0];
+          const ultimo = semana[6];
+          const mismomes = primero.getMonth() === ultimo.getMonth();
+          return mismomes
+            ? `${primero.getDate()} - ${ultimo.getDate()} de ${MESES[primero.getMonth()]} ${primero.getFullYear()}`
+            : `${primero.getDate()} de ${MESES[primero.getMonth()]} - ${ultimo.getDate()} de ${MESES[ultimo.getMonth()]}`;
+        })();
 
   return (
     <div>
       <div className="panel-card-header">
-        <h2 className="section-title">
-          {MESES[mesActual.getMonth()]} {mesActual.getFullYear()}
-        </h2>
+        <h2 className="section-title">{etiquetaPeriodo}</h2>
         <div className="calendar-nav">
-          <button className="btn-small" type="button" onClick={() => cambiarMes(-1)}>
+          <div className="calendar-view-toggle">
+            <button
+              className={vista === "mes" ? "active" : ""}
+              type="button"
+              onClick={() => setVista("mes")}
+            >
+              Mes
+            </button>
+            <button
+              className={vista === "semana" ? "active" : ""}
+              type="button"
+              onClick={() => setVista("semana")}
+            >
+              Semana
+            </button>
+          </div>
+          <button className="btn-small" type="button" onClick={() => moverPeriodo(-1)}>
             &larr;
           </button>
-          <button className="btn-small" type="button" onClick={() => cambiarMes(1)}>
+          <button className="btn-small" type="button" onClick={() => moverPeriodo(1)}>
             &rarr;
           </button>
         </div>
@@ -265,7 +333,7 @@ function CalendarioPanel() {
       {subObras.length === 0 ? (
         <p className="muted">Todavia no tenes sub-obras asignadas.</p>
       ) : (
-        <div className="calendar-grid">
+        <div className={vista === "mes" ? "calendar-grid" : "calendar-grid calendar-grid-semana"}>
           {DIAS_SEMANA.map((dia, i) => (
             <div className="calendar-weekday" key={i}>
               {dia}
@@ -273,15 +341,16 @@ function CalendarioPanel() {
           ))}
           {dias.map((dia) => {
             const key = toKey(dia);
-            const esDelMes = dia.getMonth() === mesActual.getMonth();
+            const esDelMes = vista === "mes" ? dia.getMonth() === fechaReferencia.getMonth() : true;
             const tieneAvance = Boolean(avancesPorDia[key]?.length);
+            const tieneProgramada = actividades.some((a) => estaProgramadaEseDia(a, key));
             return (
               <button
                 key={key}
                 type="button"
                 className={`calendar-day${esDelMes ? "" : " calendar-day-out"}${
                   tieneAvance ? " calendar-day-marcado" : ""
-                }`}
+                }${tieneProgramada ? " calendar-day-programado" : ""}`}
                 onClick={() => {
                   setDiaSeleccionado(dia);
                   setFormError("");
@@ -295,11 +364,32 @@ function CalendarioPanel() {
         </div>
       )}
 
+      <div className="calendar-legend">
+        <span>
+          <span className="calendar-legend-swatch calendar-legend-programado" /> Actividad programada
+        </span>
+        <span>
+          <span className="calendar-legend-swatch calendar-legend-marcado" /> Avance registrado
+        </span>
+      </div>
+
       {diaSeleccionado && (
         <Modal
           title={`Avance del ${diaSeleccionado.getDate()} de ${MESES[diaSeleccionado.getMonth()]}`}
           onClose={() => setDiaSeleccionado(null)}
         >
+          {programadasDelDia.length > 0 && (
+            <div className="vista-block">
+              <h3>Actividades programadas este dia</h3>
+              <div className="vista-checklist">
+                {programadasDelDia.map((a) => (
+                  <div key={a.id} className="muted">
+                    {a.subObra.nombre} &middot; {a.actividadCatalogo?.nombre}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
           {avancesDelDia.length > 0 && (
             <div className="vista-block">
               <h3>Ya registrado ese dia</h3>
