@@ -4,6 +4,7 @@ import AceptarInvitacion from "./components/AceptarInvitacion";
 import AsignarVistasPanel from "./components/AsignarVistasPanel";
 import EmpresasPanel from "./components/EmpresasPanel";
 import EquipoPanel from "./components/EquipoPanel";
+import ObrasPanel from "./components/ObrasPanel";
 
 function ConstructionArt() {
   return (
@@ -173,6 +174,9 @@ function AppShell({ user, onLogout }) {
     }
 
     const list = [];
+    if (user.vistas?.includes("obras")) {
+      list.push({ key: "obras", label: "Obras", render: () => <ObrasPanel /> });
+    }
     if (user.vistas?.includes("equipo")) {
       list.push({ key: "equipo", label: "Equipo", render: () => <EquipoPanel /> });
     }

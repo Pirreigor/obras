@@ -11,10 +11,11 @@ const {
 } = require("../controllers/obra.controller");
 const { requireAuth } = require("../middleware/auth.middleware");
 const { requireRole } = require("../middleware/role.middleware");
+const { requireVista } = require("../middleware/vista.middleware");
 
 const router = Router();
 
-router.use(requireAuth);
+router.use(requireAuth, requireVista("obras"));
 
 router.get("/", list);
 router.get("/:id", getById);

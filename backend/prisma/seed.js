@@ -39,17 +39,24 @@ async function main() {
     },
   });
 
-  const vistaEquipo = await prisma.vista.upsert({
-    where: { clave: "equipo" },
-    update: {},
-    create: { clave: "equipo", nombre: "Equipo" },
-  });
+  const catalogoVistas = [
+    { clave: "equipo", nombre: "Equipo" },
+    { clave: "obras", nombre: "Obras" },
+  ];
 
-  await prisma.usuarioVista.upsert({
-    where: { usuarioId_vistaId: { usuarioId: admin.id, vistaId: vistaEquipo.id } },
-    update: {},
-    create: { usuarioId: admin.id, vistaId: vistaEquipo.id },
-  });
+  for (const datosVista of catalogoVistas) {
+    const vista = await prisma.vista.upsert({
+      where: { clave: datosVista.clave },
+      update: {},
+      create: datosVista,
+    });
+
+    await prisma.usuarioVista.upsert({
+      where: { usuarioId_vistaId: { usuarioId: admin.id, vistaId: vista.id } },
+      update: {},
+      create: { usuarioId: admin.id, vistaId: vista.id },
+    });
+  }
 
   console.log("Seed completa");
 }
