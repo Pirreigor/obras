@@ -1,6 +1,7 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { apiFetch } from "./api";
 import AceptarInvitacion from "./components/AceptarInvitacion";
+import AsignarVistasPanel from "./components/AsignarVistasPanel";
 import EmpresasPanel from "./components/EmpresasPanel";
 import EquipoPanel from "./components/EquipoPanel";
 
@@ -166,21 +167,42 @@ function LoginScreen({ onLogin }) {
 }
 
 function AppShell({ user, onLogout }) {
-  let content = (
+  const items = useMemo(() => {
+    if (user.rol === "SUPERADMINISTRADOR") {
+      return [{ key: "empresas", label: "Empresas", render: () => <EmpresasPanel /> }];
+    }
+
+    const list = [];
+    if (user.vistas?.includes("equipo")) {
+      list.push({ key: "equipo", label: "Equipo", render: () => <EquipoPanel /> });
+    }
+    if (user.rol === "ADMINISTRADOR") {
+      list.push({ key: "asignar-vistas", label: "Asignar vistas", render: () => <AsignarVistasPanel /> });
+    }
+    return list;
+  }, [user]);
+
+  const [active, setActive] = useState(items[0]?.key || null);
+
+  useEffect(() => {
+    if (!items.some((item) => item.key === active)) {
+      setActive(items[0]?.key || null);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [items]);
+
+  const activeItem = items.find((item) => item.key === active);
+
+  const content = activeItem ? (
+    activeItem.render()
+  ) : (
     <div className="panel-card">
-      <h2>Todavia no hay pantallas para tu rol</h2>
+      <h2>Todavia no hay nada para vos aca</h2>
       <p className="muted">
-        Las pantallas de obras y sub-obras estan en camino. Por ahora, tu cuenta ya esta lista para usarlas
-        apenas existan.
+        Pedile a tu administrador que te asigne una vista, o espera a que se agreguen mas pantallas.
       </p>
     </div>
   );
-
-  if (user.rol === "SUPERADMINISTRADOR") {
-    content = <EmpresasPanel />;
-  } else if (user.rol === "ADMINISTRADOR" || user.rol === "SUPERVISOR") {
-    content = <EquipoPanel />;
-  }
 
   return (
     <div className="app-shell">
@@ -195,6 +217,20 @@ function AppShell({ user, onLogout }) {
           </button>
         </div>
       </header>
+      {items.length > 1 && (
+        <nav className="app-nav">
+          {items.map((item) => (
+            <button
+              key={item.key}
+              type="button"
+              className={item.key === active ? "active" : ""}
+              onClick={() => setActive(item.key)}
+            >
+              {item.label}
+            </button>
+          ))}
+        </nav>
+      )}
       <main className="app-content">{content}</main>
     </div>
   );

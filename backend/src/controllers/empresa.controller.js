@@ -28,7 +28,7 @@ async function create(req, res) {
   const empresa = await prisma.$transaction(async (tx) => {
     const nuevaEmpresa = await tx.empresa.create({ data: { nombre } });
 
-    await tx.usuario.create({
+    const admin = await tx.usuario.create({
       data: {
         empresaId: nuevaEmpresa.id,
         name: adminName,
@@ -37,6 +37,17 @@ async function create(req, res) {
         rol: "ADMINISTRADOR",
       },
     });
+
+    // El rol ADMINISTRADOR ya tiene acceso total (ver requireVista), pero se
+    // le asignan todas las vistas igual para que el panel de asignacion
+    // refleje su acceso real.
+    const vistas = await tx.vista.findMany({ select: { id: true } });
+    if (vistas.length > 0) {
+      await tx.usuarioVista.createMany({
+        data: vistas.map((v) => ({ usuarioId: admin.id, vistaId: v.id })),
+        skipDuplicates: true,
+      });
+    }
 
     return nuevaEmpresa;
   });

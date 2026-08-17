@@ -27,7 +27,7 @@ async function main() {
   const adminEmail = "admin@obras.local";
   const adminPasswordHash = await bcrypt.hash("Admin12345", 10);
 
-  await prisma.usuario.upsert({
+  const admin = await prisma.usuario.upsert({
     where: { email: adminEmail },
     update: {},
     create: {
@@ -37,6 +37,18 @@ async function main() {
       passwordHash: adminPasswordHash,
       rol: "ADMINISTRADOR",
     },
+  });
+
+  const vistaEquipo = await prisma.vista.upsert({
+    where: { clave: "equipo" },
+    update: {},
+    create: { clave: "equipo", nombre: "Equipo" },
+  });
+
+  await prisma.usuarioVista.upsert({
+    where: { usuarioId_vistaId: { usuarioId: admin.id, vistaId: vistaEquipo.id } },
+    update: {},
+    create: { usuarioId: admin.id, vistaId: vistaEquipo.id },
   });
 
   console.log("Seed completa");

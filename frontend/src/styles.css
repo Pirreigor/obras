@@ -385,6 +385,66 @@ body {
   word-break: break-all;
 }
 
+.vista-block {
+  margin-top: 18px;
+}
+
+.vista-checklist {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.vista-check {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  font-size: 14.5px;
+  color: var(--ink);
+}
+
+.vista-check input {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--accent);
+}
+
+.save-msg {
+  margin-top: 10px;
+  color: var(--ink-soft);
+}
+
+/* ---------- app nav ---------- */
+
+.app-nav {
+  display: flex;
+  gap: 4px;
+  padding: 0 32px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+}
+
+.app-nav button {
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  padding: 14px 4px;
+  margin-right: 24px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--ink-soft);
+  cursor: pointer;
+}
+
+.app-nav button:hover {
+  color: var(--ink);
+}
+
+.app-nav button.active {
+  color: var(--ink);
+  border-bottom-color: var(--accent);
+}
+
 @media (max-width: 860px) {
   .panel-grid {
     grid-template-columns: 1fr;

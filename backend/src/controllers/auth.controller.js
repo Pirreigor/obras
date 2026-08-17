@@ -7,6 +7,23 @@ const { signAccessToken } = require("../utils/jwt");
 const INVITACION_VIGENCIA_DIAS = 7;
 const ROLES_INVITABLES = ["ADMINISTRADOR", "SUPERVISOR", "RESIDENTE", "CALIDAD_PRODUCCION"];
 
+async function getVistasClaves(usuario) {
+  if (usuario.rol === "ADMINISTRADOR") {
+    const todas = await prisma.vista.findMany({ select: { clave: true } });
+    return todas.map((v) => v.clave);
+  }
+
+  if (usuario.empresaId == null) {
+    return [];
+  }
+
+  const asignadas = await prisma.usuarioVista.findMany({
+    where: { usuarioId: usuario.id },
+    select: { vista: { select: { clave: true } } },
+  });
+  return asignadas.map((a) => a.vista.clave);
+}
+
 async function login(req, res) {
   const { email, password } = req.body;
 
@@ -25,6 +42,7 @@ async function login(req, res) {
   }
 
   const token = signAccessToken({ id: user.id, rol: user.rol, empresaId: user.empresaId, email: user.email });
+  const vistas = await getVistasClaves(user);
 
   return res.json({
     user: {
@@ -33,6 +51,7 @@ async function login(req, res) {
       email: user.email,
       rol: user.rol,
       empresaId: user.empresaId,
+      vistas,
     },
     token,
   });
@@ -55,7 +74,9 @@ async function me(req, res) {
     return res.status(404).json({ message: "Usuario no encontrado" });
   }
 
-  return res.json({ user });
+  const vistas = await getVistasClaves(user);
+
+  return res.json({ user: { ...user, vistas } });
 }
 
 async function crearInvitacion(req, res) {
@@ -163,6 +184,7 @@ async function aceptarInvitacion(req, res) {
   });
 
   const accessToken = signAccessToken({ id: user.id, rol: user.rol, empresaId: user.empresaId, email: user.email });
+  const vistas = await getVistasClaves(user);
 
   return res.status(201).json({
     user: {
@@ -171,6 +193,7 @@ async function aceptarInvitacion(req, res) {
       email: user.email,
       rol: user.rol,
       empresaId: user.empresaId,
+      vistas,
     },
     token: accessToken,
   });

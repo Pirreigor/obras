@@ -82,11 +82,40 @@ model Usuario {
   avancesCreados          Avance[]         @relation("AvanceCreadoPor")
   pedidosCreados          PedidoMaterial[] @relation("PedidoCreadoPor")
   invitacionesEnviadas    Invitacion[]     @relation("InvitacionInvitadoPor")
+  vistasAsignadas         UsuarioVista[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@map("usuarios")
+}
+
+model Vista {
+  id     Int    @id @default(autoincrement())
+  // identificador estable usado por el codigo (ej. "equipo"); nombre es
+  // solo la etiqueta que se muestra en el menu.
+  clave  String @unique
+  nombre String
+
+  usuarios UsuarioVista[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("vistas")
+}
+
+model UsuarioVista {
+  id        Int     @id @default(autoincrement())
+  usuarioId Int
+  usuario   Usuario @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+  vistaId   Int
+  vista     Vista   @relation(fields: [vistaId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@unique([usuarioId, vistaId])
+  @@map("usuario_vistas")
 }
 
 model Invitacion {
