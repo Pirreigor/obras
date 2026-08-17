@@ -3,6 +3,7 @@ const crypto = require("crypto");
 const prisma = require("../utils/prisma");
 const { hashPassword, comparePassword } = require("../utils/hash");
 const { signAccessToken } = require("../utils/jwt");
+const { enviarInvitacion } = require("../utils/mail");
 
 const INVITACION_VIGENCIA_DIAS = 7;
 const ROLES_INVITABLES = ["ADMINISTRADOR", "SUPERVISOR", "RESIDENTE", "CALIDAD_PRODUCCION"];
@@ -109,8 +110,15 @@ async function crearInvitacion(req, res) {
     },
   });
 
-  // TODO: enviar el correo de invitacion una vez que se elija un proveedor de email.
-  // Por ahora se devuelve el token para poder probar el flujo manualmente.
+  const empresa = await prisma.empresa.findUnique({ where: { id: req.user.empresaId } });
+  const link = `${process.env.FRONTEND_URL}/aceptar-invitacion?token=${token}`;
+
+  try {
+    await enviarInvitacion({ to: email, link, rol, empresaNombre: empresa?.nombre });
+  } catch (error) {
+    console.error("Error enviando correo de invitacion:", error);
+  }
+
   return res.status(201).json({ invitacion });
 }
 

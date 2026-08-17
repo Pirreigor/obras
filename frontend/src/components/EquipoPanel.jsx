@@ -259,7 +259,7 @@ function EquipoPanel({ currentUser }) {
       {mostrarModalInvitar && (
         <Modal title="Invitar a alguien" onClose={() => setMostrarModalInvitar(false)}>
           <p className="muted">
-            Todavia no se envia el correo automaticamente: copia el enlace y compartilo vos mientras tanto.
+            Se le manda un correo a la persona invitada con el enlace para activar su cuenta.
           </p>
           {inviteError && <div className="form-error">{inviteError}</div>}
           <form className="stacked-form" onSubmit={handleInvite}>
@@ -289,7 +289,7 @@ function EquipoPanel({ currentUser }) {
           </form>
           {lastInviteLink && (
             <div className="invite-link-box">
-              <p className="muted">Enlace de invitacion:</p>
+              <p className="muted">Por si el correo no llega, este es el enlace directo:</p>
               <code>{lastInviteLink}</code>
             </div>
           )}
