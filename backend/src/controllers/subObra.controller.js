@@ -7,6 +7,18 @@ function scopedWhere(req, extra = {}) {
   };
 }
 
+// Administrador y Supervisor gestionan cualquier sub-obra de su empresa;
+// Residente/Calidad-Produccion solo la(s) sub-obra(s) donde estan asignados.
+function puedeGestionarSubObra(user, subObra) {
+  if (user.rol === "ADMINISTRADOR" || user.rol === "SUPERVISOR") {
+    return true;
+  }
+  if (subObra.responsableCalidadId === user.id) {
+    return true;
+  }
+  return subObra.residentes?.some((r) => r.usuarioId === user.id) ?? false;
+}
+
 async function listMias(req, res) {
   const subObras = await prisma.subObra.findMany({
     where: {
@@ -110,9 +122,16 @@ async function createActividad(req, res) {
   const subObraId = Number(req.params.id);
   const { actividadCatalogoId, actividadCatalogoNombre, fechaInicioPlan, fechaFinPlan } = req.body;
 
-  const subObra = await prisma.subObra.findFirst({ where: scopedWhere(req, { id: subObraId }) });
+  const subObra = await prisma.subObra.findFirst({
+    where: scopedWhere(req, { id: subObraId }),
+    include: { residentes: true },
+  });
   if (!subObra) {
     return res.status(404).json({ message: "Sub-obra no encontrada" });
+  }
+
+  if (!puedeGestionarSubObra(req.user, subObra)) {
+    return res.status(403).json({ message: "No tenes permiso para agregar actividades en esta sub-obra" });
   }
 
   let catalogoId = actividadCatalogoId != null ? Number(actividadCatalogoId) : null;
@@ -155,14 +174,21 @@ async function updateActividad(req, res) {
   const actividadId = Number(req.params.actividadId);
   const { urgente } = req.body;
 
-  const subObra = await prisma.subObra.findFirst({ where: scopedWhere(req, { id: subObraId }) });
+  const subObra = await prisma.subObra.findFirst({
+    where: scopedWhere(req, { id: subObraId }),
+    include: { residentes: true },
+  });
   if (!subObra) {
     return res.status(404).json({ message: "Sub-obra no encontrada" });
   }
 
+  if (!puedeGestionarSubObra(req.user, subObra)) {
+    return res.status(403).json({ message: "No tenes permiso para modificar esta actividad" });
+  }
+
   const actividad = await prisma.actividadProgramada.findFirst({ where: { id: actividadId, subObraId } });
   if (!actividad) {
-    return res.status(404).json({ message: "Tarea no encontrada" });
+    return res.status(404).json({ message: "Actividad no encontrada" });
   }
 
   const actualizada = await prisma.actividadProgramada.update({

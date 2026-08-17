@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { apiFetch } from "../api";
 import Modal from "./Modal";
 
+const NUEVA = "__nueva__";
 const DIAS_SEMANA = ["L", "M", "M", "J", "V", "S", "D"];
 const MESES = [
   "Enero",
@@ -46,25 +47,45 @@ function buildGrid(year, month) {
   return dias;
 }
 
-function AvanceForm({ fecha, actividades, onSaved, onError }) {
+function AvanceForm({ fecha, actividades, subObras, onSaved, onError }) {
   const [actividadProgramadaId, setActividadProgramadaId] = useState("");
+  const [nuevaSubObraId, setNuevaSubObraId] = useState("");
+  const [nuevaActividadNombre, setNuevaActividadNombre] = useState("");
   const [porcentaje, setPorcentaje] = useState("");
   const [descripcion, setDescripcion] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
   async function handleSubmit(e) {
     e.preventDefault();
-    if (!actividadProgramadaId) {
-      onError("Elegi una actividad");
-      return;
-    }
-    const actividad = actividades.find((a) => String(a.id) === String(actividadProgramadaId));
     setSubmitting(true);
     try {
-      const data = await apiFetch(`/api/sub-obras/${actividad.subObra.id}/avances`, {
+      let subObraId;
+      let actividadId = actividadProgramadaId;
+
+      if (actividadProgramadaId === NUEVA) {
+        if (!nuevaSubObraId) {
+          throw new Error("Elegi en que sub-obra va la actividad nueva");
+        }
+        if (!nuevaActividadNombre.trim()) {
+          throw new Error("Falta el nombre de la actividad nueva");
+        }
+        const creada = await apiFetch(`/api/sub-obras/${nuevaSubObraId}/actividades`, {
+          method: "POST",
+          body: JSON.stringify({ actividadCatalogoNombre: nuevaActividadNombre.trim() }),
+        });
+        actividadId = creada.actividad.id;
+        subObraId = nuevaSubObraId;
+      } else if (actividadProgramadaId) {
+        const actividad = actividades.find((a) => String(a.id) === String(actividadProgramadaId));
+        subObraId = actividad.subObra.id;
+      } else {
+        throw new Error("Elegi una actividad");
+      }
+
+      const data = await apiFetch(`/api/sub-obras/${subObraId}/avances`, {
         method: "POST",
         body: JSON.stringify({
-          actividadProgramadaId,
+          actividadProgramadaId: actividadId,
           fecha,
           porcentaje: porcentaje || 0,
           descripcion: descripcion || undefined,
@@ -73,6 +94,8 @@ function AvanceForm({ fecha, actividades, onSaved, onError }) {
       setPorcentaje("");
       setDescripcion("");
       setActividadProgramadaId("");
+      setNuevaSubObraId("");
+      setNuevaActividadNombre("");
       onSaved(data.avance);
     } catch (err) {
       onError(err.message);
@@ -97,8 +120,40 @@ function AvanceForm({ fecha, actividades, onSaved, onError }) {
               {a.subObra.nombre} &middot; {a.actividadCatalogo?.nombre}
             </option>
           ))}
+          <option value={NUEVA}>+ Crear actividad nueva</option>
         </select>
       </div>
+
+      {actividadProgramadaId === NUEVA && (
+        <>
+          <div className="field">
+            <label htmlFor="avanceSubObra">Sub-obra</label>
+            <select
+              id="avanceSubObra"
+              value={nuevaSubObraId}
+              onChange={(e) => setNuevaSubObraId(e.target.value)}
+              required
+            >
+              <option value="">Selecciona una sub-obra</option>
+              {subObras.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.nombre}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="field">
+            <label htmlFor="avanceActividadNueva">Nombre de la actividad nueva</label>
+            <input
+              id="avanceActividadNueva"
+              value={nuevaActividadNombre}
+              onChange={(e) => setNuevaActividadNombre(e.target.value)}
+              required
+            />
+          </div>
+        </>
+      )}
+
       <div className="field">
         <label htmlFor="avancePorcentaje">Porcentaje completado</label>
         <input
@@ -124,6 +179,7 @@ function AvanceForm({ fecha, actividades, onSaved, onError }) {
 
 function CalendarioPanel() {
   const [actividades, setActividades] = useState([]);
+  const [subObras, setSubObras] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [mesActual, setMesActual] = useState(() => {
@@ -137,8 +193,12 @@ function CalendarioPanel() {
     setLoading(true);
     setError("");
     try {
-      const data = await apiFetch("/api/calendario/mias");
-      setActividades(data.actividades);
+      const [actividadesRes, subObrasRes] = await Promise.all([
+        apiFetch("/api/calendario/mias"),
+        apiFetch("/api/sub-obras/mias"),
+      ]);
+      setActividades(actividadesRes.actividades);
+      setSubObras(subObrasRes.subObras);
     } catch (err) {
       setError(err.message);
     } finally {
@@ -202,8 +262,8 @@ function CalendarioPanel() {
         </div>
       </div>
 
-      {actividades.length === 0 ? (
-        <p className="muted">Todavia no tenes actividades asignadas en tus sub-obras.</p>
+      {subObras.length === 0 ? (
+        <p className="muted">Todavia no tenes sub-obras asignadas.</p>
       ) : (
         <div className="calendar-grid">
           {DIAS_SEMANA.map((dia, i) => (
@@ -258,6 +318,7 @@ function CalendarioPanel() {
             <AvanceForm
               fecha={toKey(diaSeleccionado)}
               actividades={actividades}
+              subObras={subObras}
               onSaved={handleAvanceGuardado}
               onError={setFormError}
             />

@@ -20,7 +20,7 @@ const FORM_INICIAL = {
 const SUB_OBRA_FORM_INICIAL = { nombre: "", descripcion: "", responsableCalidadId: "", residenteIds: [] };
 
 function ObrasPanel({ currentUser }) {
-  const puedeCrearActividades = currentUser?.rol === "ADMINISTRADOR";
+  const puedeCrearActividades = currentUser?.rol === "ADMINISTRADOR" || currentUser?.rol === "SUPERVISOR";
   const [obras, setObras] = useState([]);
   const [zonas, setZonas] = useState([]);
   const [localidadesPorZona, setLocalidadesPorZona] = useState({});

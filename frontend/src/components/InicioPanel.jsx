@@ -82,7 +82,12 @@ function InicioPanel({ currentUser }) {
       )}
 
       {subObraParaActividades && (
-        <ActividadesModal subObra={subObraParaActividades} puedeCrear={false} onClose={() => setSubObraParaActividades(null)} />
+        <ActividadesModal
+          subObra={subObraParaActividades}
+          puedeCrear
+          puedeMarcarUrgente
+          onClose={() => setSubObraParaActividades(null)}
+        />
       )}
     </div>
   );
