@@ -8,6 +8,7 @@ const {
   listActividades,
   createActividad,
   updateActividad,
+  cerrarActividad,
   listAvances,
   createAvance,
 } = require("../controllers/subObra.controller");
@@ -29,6 +30,7 @@ router.get("/:id/actividades", listActividades);
 // asignado a esta sub-obra puntual) se valida dentro del controller.
 router.post("/:id/actividades", createActividad);
 router.patch("/:id/actividades/:actividadId", updateActividad);
+router.post("/:id/actividades/:actividadId/cerrar", cerrarActividad);
 
 router.get("/:id/avances", listAvances);
 router.post("/:id/avances", requireRole("ADMINISTRADOR", "RESIDENTE", "CALIDAD_PRODUCCION"), createAvance);

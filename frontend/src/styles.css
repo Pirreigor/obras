@@ -606,6 +606,68 @@ body {
   border-color: var(--success);
 }
 
+.timeline-bloque-clicable {
+  cursor: pointer;
+}
+
+.timeline-bloque-clicable:hover {
+  filter: brightness(0.97);
+}
+
+.calendar-date-picker {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 6px 8px;
+  font-family: var(--font-body);
+  font-size: 13px;
+  color: var(--ink);
+  background: var(--surface);
+}
+
+.tabla-semanal th {
+  text-align: center;
+}
+
+.tabla-semanal td:first-child,
+.tabla-semanal th:first-child {
+  text-align: left;
+  white-space: normal;
+  min-width: 180px;
+}
+
+.tabla-semanal-celda {
+  text-align: center;
+}
+
+.tabla-semanal-marca {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 5px;
+  font-weight: 700;
+  font-size: 13px;
+}
+
+.tabla-semanal-marca-pendiente {
+  border: 1px solid var(--info);
+  background: var(--info-bg);
+  color: var(--info);
+  cursor: pointer;
+}
+
+.tabla-semanal-marca-pendiente:hover {
+  background: var(--info);
+  color: #fff;
+}
+
+.tabla-semanal-marca-hecha {
+  border: 1px solid var(--success);
+  background: var(--success-bg);
+  color: var(--success);
+}
+
 .calendar-legend-marcado {
   border-color: var(--accent);
   background: var(--paper);

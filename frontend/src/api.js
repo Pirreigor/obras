@@ -4,7 +4,10 @@ const API_URL = import.meta.env.VITE_API_URL ?? (import.meta.env.PROD ? "" : "ht
 
 async function apiFetch(path, options = {}) {
   const token = localStorage.getItem("obras_token");
-  const headers = { "Content-Type": "application/json", ...(options.headers || {}) };
+  // Si el body es FormData (subida de archivos), no se fuerza el
+  // Content-Type: el browser tiene que fijar el boundary del multipart.
+  const esFormData = typeof FormData !== "undefined" && options.body instanceof FormData;
+  const headers = { ...(esFormData ? {} : { "Content-Type": "application/json" }), ...(options.headers || {}) };
   if (token) {
     headers.Authorization = `Bearer ${token}`;
   }

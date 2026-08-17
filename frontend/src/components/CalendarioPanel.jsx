@@ -1,9 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
 import { apiFetch } from "../api";
 import Modal from "./Modal";
+import CierreModal from "./CierreModal";
 
 const NUEVA = "__nueva__";
 const DIAS_SEMANA = ["L", "M", "M", "J", "V", "S", "D"];
+const DIAS_SEMANA_LARGO = ["Lunes", "Martes", "Miercoles", "Jueves", "Viernes", "Sabado", "Domingo"];
 const MESES = [
   "Enero",
   "Febrero",
@@ -24,6 +26,13 @@ function toKey(date) {
   const m = String(date.getMonth() + 1).padStart(2, "0");
   const d = String(date.getDate()).padStart(2, "0");
   return `${y}-${m}-${d}`;
+}
+
+// Convierte el value ("YYYY-MM-DD") de un <input type="date"> a un Date
+// local, igual convencion que toKey, para no correrse de dia.
+function fechaDesdeInput(value) {
+  const [y, m, d] = value.split("-").map(Number);
+  return new Date(y, m - 1, d);
 }
 
 // Las fechas de Avance/plan llegan como fecha-hora UTC de un dia sin hora
@@ -266,7 +275,7 @@ function asignarColumnas(bloques) {
   return { bloques: conColumna, totalColumnas: finColumnas.length || 1 };
 }
 
-function TimelineDia({ fecha, actividades }) {
+function TimelineDia({ fecha, actividades, onCerrarClick }) {
   const { bloques, totalColumnas } = useMemo(
     () => asignarColumnas(bloquesDelDia(actividades, fecha)),
     [actividades, fecha]
@@ -292,38 +301,126 @@ function TimelineDia({ fecha, actividades }) {
           <div className="timeline-linea" key={h} style={{ top: (h - HORA_INICIO) * ALTO_HORA }} />
         ))}
         {bloques.length === 0 && <p className="muted timeline-vacio">Sin actividades programadas para este dia.</p>}
-        {bloques.map(({ actividad, horaInicio, horaFin, cierreRealHoy, columna }) => (
-          <div
-            key={actividad.id}
-            className={`timeline-bloque${actividad.urgente ? " timeline-bloque-urgente" : ""}${
-              actividad.estado === "HECHA" ? " timeline-bloque-hecha" : ""
-            }`}
-            style={{
-              top: (horaInicio - HORA_INICIO) * ALTO_HORA,
-              height: (horaFin - horaInicio) * ALTO_HORA,
-              left: `${(columna / totalColumnas) * 100}%`,
-              width: `calc(${100 / totalColumnas}% - 6px)`,
-            }}
-          >
-            <strong>{actividad.subObra.nombre}</strong>
-            <span>{actividad.actividadCatalogo?.nombre}</span>
-            <span className="timeline-bloque-horas">
-              {formatHoraDecimal(horaInicio)}&ndash;{formatHoraDecimal(horaFin)}
-              {cierreRealHoy != null ? ` · cierre real ${formatHoraDecimal(cierreRealHoy)}` : ""}
-            </span>
-          </div>
-        ))}
+        {bloques.map(({ actividad, horaInicio, horaFin, cierreRealHoy, columna }) => {
+          const hecha = actividad.estado === "HECHA";
+          return (
+            <div
+              key={actividad.id}
+              role={hecha ? undefined : "button"}
+              tabIndex={hecha ? undefined : 0}
+              className={`timeline-bloque${actividad.urgente ? " timeline-bloque-urgente" : ""}${
+                hecha ? " timeline-bloque-hecha" : ""
+              }${hecha ? "" : " timeline-bloque-clicable"}`}
+              style={{
+                top: (horaInicio - HORA_INICIO) * ALTO_HORA,
+                height: (horaFin - horaInicio) * ALTO_HORA,
+                left: `${(columna / totalColumnas) * 100}%`,
+                width: `calc(${100 / totalColumnas}% - 6px)`,
+              }}
+              onClick={hecha ? undefined : () => onCerrarClick(actividad, fecha)}
+              title={hecha ? "Actividad completada" : "Click para marcar como completada"}
+            >
+              <strong>{actividad.subObra.nombre}</strong>
+              <span>{actividad.actividadCatalogo?.nombre}</span>
+              <span className="timeline-bloque-horas">
+                {formatHoraDecimal(horaInicio)}&ndash;{formatHoraDecimal(horaFin)}
+                {cierreRealHoy != null ? ` · cierre real ${formatHoraDecimal(cierreRealHoy)}` : ""}
+              </span>
+            </div>
+          );
+        })}
       </div>
     </div>
   );
 }
 
-function DetalleDia({ fecha, programadas, avances, subObras, actividades, onSaved, formError, setFormError, timeline }) {
+// Tabla tipo Gantt: filas = actividades de la semana, columnas = dias.
+// Click en una celda activa abre el modal de cierre para esa actividad
+// ese dia puntual.
+function TablaSemanal({ actividades, dias, onCerrarClick }) {
+  const filas = actividades.filter((a) => dias.some((d) => estaProgramadaEseDia(a, toKey(d))));
+
+  return (
+    <div className="table-scroll">
+      <table className="data-table tabla-semanal">
+        <thead>
+          <tr>
+            <th>Actividad</th>
+            {dias.map((d) => (
+              <th key={toKey(d)}>
+                {DIAS_SEMANA_LARGO[(d.getDay() + 6) % 7]}
+                <br />
+                {String(d.getDate()).padStart(2, "0")}/{String(d.getMonth() + 1).padStart(2, "0")}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {filas.length === 0 && (
+            <tr>
+              <td colSpan={dias.length + 1} className="muted">
+                Sin actividades programadas esta semana.
+              </td>
+            </tr>
+          )}
+          {filas.map((a) => (
+            <tr key={a.id}>
+              <td>
+                {a.subObra.nombre} &middot; {a.actividadCatalogo?.nombre}
+              </td>
+              {dias.map((d) => {
+                const key = toKey(d);
+                const programada = estaProgramadaEseDia(a, key);
+                const hecha = a.estado === "HECHA";
+                const cerradaEseDia = hecha && a.fechaCierreReal && keyFromIso(a.fechaCierreReal) === key;
+                return (
+                  <td key={key} className="tabla-semanal-celda">
+                    {programada &&
+                      (hecha ? (
+                        <span
+                          className="tabla-semanal-marca tabla-semanal-marca-hecha"
+                          title={cerradaEseDia ? "Completada este dia" : "Completada"}
+                        >
+                          &#10003;
+                        </span>
+                      ) : (
+                        <button
+                          type="button"
+                          className="tabla-semanal-marca tabla-semanal-marca-pendiente"
+                          onClick={() => onCerrarClick(a, key)}
+                          title="Marcar como completada este dia"
+                        >
+                          X
+                        </button>
+                      ))}
+                  </td>
+                );
+              })}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function DetalleDia({
+  fecha,
+  programadas,
+  avances,
+  subObras,
+  actividades,
+  onSaved,
+  formError,
+  setFormError,
+  timeline,
+  onCerrarClick,
+}) {
   return (
     <>
       {timeline ? (
         <div className="vista-block">
-          <TimelineDia fecha={fecha} actividades={actividades} />
+          <TimelineDia fecha={fecha} actividades={actividades} onCerrarClick={onCerrarClick} />
           <p className="muted timeline-leyenda">
             <span className="timeline-leyenda-swatch timeline-leyenda-urgente" /> Urgente &nbsp;
             <span className="timeline-leyenda-swatch timeline-leyenda-hecha" /> Completada
@@ -382,6 +479,7 @@ function CalendarioPanel() {
   });
   const [diaSeleccionado, setDiaSeleccionado] = useState(null);
   const [formError, setFormError] = useState("");
+  const [cierreObjetivo, setCierreObjetivo] = useState(null);
 
   async function load() {
     setLoading(true);
@@ -449,6 +547,15 @@ function CalendarioPanel() {
     load();
   }
 
+  function handleCerrarClick(actividad, fechaKey) {
+    setCierreObjetivo({ actividad, fecha: fechaKey });
+  }
+
+  function handleCerrado() {
+    setCierreObjetivo(null);
+    load();
+  }
+
   if (loading) {
     return <p className="muted">Cargando...</p>;
   }
@@ -508,6 +615,12 @@ function CalendarioPanel() {
               Dia
             </button>
           </div>
+          <input
+            className="calendar-date-picker"
+            type="date"
+            value={toKey(fechaReferencia)}
+            onChange={(e) => e.target.value && setFechaReferencia(fechaDesdeInput(e.target.value))}
+          />
           <button className="btn-small" type="button" onClick={() => moverPeriodo(-1)}>
             &larr;
           </button>
@@ -531,10 +644,13 @@ function CalendarioPanel() {
             formError={formError}
             setFormError={setFormError}
             timeline
+            onCerrarClick={handleCerrarClick}
           />
         </div>
+      ) : vista === "semana" ? (
+        <TablaSemanal actividades={actividades} dias={dias} onCerrarClick={handleCerrarClick} />
       ) : (
-        <div className={vista === "mes" ? "calendar-grid" : "calendar-grid calendar-grid-semana"}>
+        <div className="calendar-grid">
           {DIAS_SEMANA.map((dia, i) => (
             <div className="calendar-weekday" key={i}>
               {dia}
@@ -565,7 +681,7 @@ function CalendarioPanel() {
         </div>
       )}
 
-      {vista !== "dia" && (
+      {vista === "mes" && (
         <div className="calendar-legend">
           <span>
             <span className="calendar-legend-swatch calendar-legend-programado" /> Actividad programada
@@ -592,6 +708,15 @@ function CalendarioPanel() {
             setFormError={setFormError}
           />
         </Modal>
+      )}
+
+      {cierreObjetivo && (
+        <CierreModal
+          actividad={cierreObjetivo.actividad}
+          fecha={cierreObjetivo.fecha}
+          onClose={() => setCierreObjetivo(null)}
+          onCerrado={handleCerrado}
+        />
       )}
     </div>
   );

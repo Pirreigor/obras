@@ -243,6 +243,60 @@ async function updateActividad(req, res) {
   return res.json({ actividad: actualizada });
 }
 
+// Cerrar una actividad: registra el avance al 100% para el dia indicado
+// (con evidencia opcional) y marca la actividad completa como HECHA, con
+// la hora real de cierre en ese mismo dia.
+async function cerrarActividad(req, res) {
+  const subObraId = Number(req.params.id);
+  const actividadId = Number(req.params.actividadId);
+  const { fecha, descripcion, imagenUrl } = req.body;
+
+  if (!fecha) {
+    return res.status(400).json({ message: "fecha es obligatoria" });
+  }
+
+  const subObra = await prisma.subObra.findFirst({
+    where: scopedWhere(req, { id: subObraId }),
+    include: { residentes: true },
+  });
+  if (!subObra) {
+    return res.status(404).json({ message: "Sub-obra no encontrada" });
+  }
+
+  if (!puedeGestionarSubObra(req.user, subObra)) {
+    return res.status(403).json({ message: "No tenes permiso para cerrar esta actividad" });
+  }
+
+  const actividad = await prisma.actividadProgramada.findFirst({ where: { id: actividadId, subObraId } });
+  if (!actividad) {
+    return res.status(404).json({ message: "Actividad no encontrada" });
+  }
+
+  const fechaCierre = new Date(`${fecha}T${new Date().toISOString().slice(11, 19)}Z`);
+
+  const [avance, actividadActualizada] = await prisma.$transaction([
+    prisma.avance.create({
+      data: {
+        subObraId,
+        actividadProgramadaId: actividadId,
+        fecha: new Date(fecha),
+        porcentaje: 100,
+        descripcion: descripcion || null,
+        imagenes: imagenUrl ? [imagenUrl] : [],
+        creadoPorId: req.user.id,
+      },
+      include: { creadoPor: { select: { id: true, name: true } } },
+    }),
+    prisma.actividadProgramada.update({
+      where: { id: actividadId },
+      data: { estado: "HECHA", fechaCierreReal: fechaCierre },
+      include: { actividadCatalogo: true },
+    }),
+  ]);
+
+  return res.status(201).json({ avance, actividad: actividadActualizada });
+}
+
 async function listAvances(req, res) {
   const subObraId = Number(req.params.id);
 
@@ -307,6 +361,7 @@ module.exports = {
   listActividades,
   createActividad,
   updateActividad,
+  cerrarActividad,
   listAvances,
   createAvance,
 };

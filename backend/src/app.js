@@ -10,6 +10,7 @@ const obraRoutes = require("./routes/obra.routes");
 const subObraRoutes = require("./routes/subObra.routes");
 const actividadCatalogoRoutes = require("./routes/actividadCatalogo.routes");
 const calendarioRoutes = require("./routes/calendario.routes");
+const uploadRoutes = require("./routes/upload.routes");
 
 const { notFoundHandler, errorHandler } = require("./middleware/error.middleware");
 
@@ -31,6 +32,7 @@ app.use("/api/obras", obraRoutes);
 app.use("/api/sub-obras", subObraRoutes);
 app.use("/api/actividades-catalogo", actividadCatalogoRoutes);
 app.use("/api/calendario", calendarioRoutes);
+app.use("/api/uploads", uploadRoutes);
 
 app.use(notFoundHandler);
 app.use(errorHandler);
