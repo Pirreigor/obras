@@ -76,12 +76,13 @@ model Usuario {
   passwordHash String
   rol          Rol      @default(CALIDAD_PRODUCCION)
 
-  obrasComoResidente      Obra[]           @relation("ObraResidente")
-  subObrasComoResponsable SubObra[]        @relation("SubObraResponsableCalidad")
-  registrosDiarios        RegistroDiario[] @relation("RegistroDiarioCreadoPor")
-  avancesCreados          Avance[]         @relation("AvanceCreadoPor")
-  pedidosCreados          PedidoMaterial[] @relation("PedidoCreadoPor")
-  invitacionesEnviadas    Invitacion[]     @relation("InvitacionInvitadoPor")
+  obrasComoResidente      Obra[]             @relation("ObraResidente")
+  subObrasComoResponsable SubObra[]          @relation("SubObraResponsableCalidad")
+  subObrasComoResidente   SubObraResidente[]
+  registrosDiarios        RegistroDiario[]   @relation("RegistroDiarioCreadoPor")
+  avancesCreados          Avance[]           @relation("AvanceCreadoPor")
+  pedidosCreados          PedidoMaterial[]   @relation("PedidoCreadoPor")
+  invitacionesEnviadas    Invitacion[]       @relation("InvitacionInvitadoPor")
   vistasAsignadas         UsuarioVista[]
 
   createdAt DateTime @default(now())
@@ -202,11 +203,25 @@ model SubObra {
   actividadesProgramadas ActividadProgramada[]
   avances                Avance[]
   pedidoItems            PedidoItemSubObra[]
+  residentes             SubObraResidente[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@map("sub_obras")
+}
+
+model SubObraResidente {
+  id        Int     @id @default(autoincrement())
+  subObraId Int
+  subObra   SubObra @relation(fields: [subObraId], references: [id], onDelete: Cascade)
+  usuarioId Int
+  usuario   Usuario @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@unique([subObraId, usuarioId])
+  @@map("sub_obra_residentes")
 }
 
 model ActividadCatalogo {

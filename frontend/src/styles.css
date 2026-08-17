@@ -348,6 +348,23 @@ body {
   border-bottom: none;
 }
 
+.data-table tr.row-clickable {
+  cursor: pointer;
+}
+
+.data-table tr.row-clickable:hover {
+  background: var(--paper);
+}
+
+.data-table tr.row-selected {
+  cursor: pointer;
+  background: var(--paper);
+}
+
+.data-table tr.row-selected td:first-child {
+  box-shadow: inset 3px 0 0 var(--accent);
+}
+
 .role-pill {
   font-family: var(--font-mono);
   font-size: 11px;

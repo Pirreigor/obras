@@ -1,5 +1,10 @@
 const prisma = require("../utils/prisma");
 
+const SUB_OBRA_INCLUDE = {
+  responsableCalidad: { select: { id: true, name: true } },
+  residentes: { include: { usuario: { select: { id: true, name: true } } } },
+};
+
 function scopedWhere(req, extra = {}) {
   return {
     ...extra,
@@ -29,7 +34,7 @@ async function getById(req, res) {
       localidad: { include: { zona: true } },
       residente: { select: { id: true, name: true } },
       subObras: {
-        include: { responsableCalidad: { select: { id: true, name: true } } },
+        include: SUB_OBRA_INCLUDE,
         orderBy: { createdAt: "desc" },
       },
     },
@@ -153,7 +158,7 @@ async function listSubObras(req, res) {
 
   const subObras = await prisma.subObra.findMany({
     where: { obraId },
-    include: { responsableCalidad: { select: { id: true, name: true } } },
+    include: SUB_OBRA_INCLUDE,
     orderBy: { createdAt: "desc" },
   });
 
@@ -162,7 +167,7 @@ async function listSubObras(req, res) {
 
 async function createSubObra(req, res) {
   const obraId = Number(req.params.id);
-  const { nombre, descripcion, responsableCalidadId } = req.body;
+  const { nombre, descripcion, responsableCalidadId, residenteIds } = req.body;
 
   if (!nombre) {
     return res.status(400).json({ message: "nombre es obligatorio" });
@@ -182,13 +187,36 @@ async function createSubObra(req, res) {
     }
   }
 
-  const subObra = await prisma.subObra.create({
-    data: {
-      obraId,
-      nombre,
-      descripcion,
-      responsableCalidadId: responsableCalidadId != null ? Number(responsableCalidadId) : null,
-    },
+  let residentes = [];
+  if (Array.isArray(residenteIds) && residenteIds.length > 0) {
+    const ids = residenteIds.map(Number);
+    residentes = await prisma.usuario.findMany({
+      where: { id: { in: ids }, empresaId: req.user.empresaId, rol: "RESIDENTE" },
+    });
+    if (residentes.length !== new Set(ids).size) {
+      return res
+        .status(404)
+        .json({ message: "Alguno de los residentes indicados no existe o no tiene rol RESIDENTE" });
+    }
+  }
+
+  const subObra = await prisma.$transaction(async (tx) => {
+    const nueva = await tx.subObra.create({
+      data: {
+        obraId,
+        nombre,
+        descripcion,
+        responsableCalidadId: responsableCalidadId != null ? Number(responsableCalidadId) : null,
+      },
+    });
+
+    if (residentes.length > 0) {
+      await tx.subObraResidente.createMany({
+        data: residentes.map((residente) => ({ subObraId: nueva.id, usuarioId: residente.id })),
+      });
+    }
+
+    return tx.subObra.findUnique({ where: { id: nueva.id }, include: SUB_OBRA_INCLUDE });
   });
 
   return res.status(201).json({ subObra });
