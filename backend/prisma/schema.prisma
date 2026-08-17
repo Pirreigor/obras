@@ -249,6 +249,7 @@ model ActividadProgramada {
   fechaInicioPlan     DateTime?
   fechaFinPlan        DateTime?
   estado              EstadoActividad   @default(PENDIENTE)
+  urgente             Boolean           @default(false)
 
   registrosDiarios RegistroDiario[]
   avances          Avance[]

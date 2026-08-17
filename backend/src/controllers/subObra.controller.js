@@ -150,6 +150,30 @@ async function createActividad(req, res) {
   return res.status(201).json({ actividad });
 }
 
+async function updateActividad(req, res) {
+  const subObraId = Number(req.params.id);
+  const actividadId = Number(req.params.actividadId);
+  const { urgente } = req.body;
+
+  const subObra = await prisma.subObra.findFirst({ where: scopedWhere(req, { id: subObraId }) });
+  if (!subObra) {
+    return res.status(404).json({ message: "Sub-obra no encontrada" });
+  }
+
+  const actividad = await prisma.actividadProgramada.findFirst({ where: { id: actividadId, subObraId } });
+  if (!actividad) {
+    return res.status(404).json({ message: "Tarea no encontrada" });
+  }
+
+  const actualizada = await prisma.actividadProgramada.update({
+    where: { id: actividadId },
+    data: { urgente: typeof urgente === "boolean" ? urgente : undefined },
+    include: { actividadCatalogo: true },
+  });
+
+  return res.json({ actividad: actualizada });
+}
+
 async function listAvances(req, res) {
   const subObraId = Number(req.params.id);
 
@@ -213,6 +237,7 @@ module.exports = {
   remove,
   listActividades,
   createActividad,
+  updateActividad,
   listAvances,
   createAvance,
 };

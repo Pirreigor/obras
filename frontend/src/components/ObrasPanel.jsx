@@ -513,6 +513,7 @@ function ObrasPanel({ currentUser }) {
         <TareasModal
           subObra={subObraParaTareas}
           puedeCrear={puedeCrearTareas}
+          puedeMarcarUrgente
           onClose={() => setSubObraParaTareas(null)}
         />
       )}

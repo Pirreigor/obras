@@ -5,11 +5,12 @@ import Modal from "./Modal";
 const NUEVA = "__nueva__";
 const TAREA_FORM_INICIAL = { actividadCatalogoId: "", actividadCatalogoNombre: "", fechaInicioPlan: "", fechaFinPlan: "" };
 
-function TareasModal({ subObra, puedeCrear, onClose }) {
+function TareasModal({ subObra, puedeCrear, puedeMarcarUrgente, onClose }) {
   const [tareas, setTareas] = useState([]);
   const [catalogo, setCatalogo] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [urgenteEnCurso, setUrgenteEnCurso] = useState(null);
 
   const [mostrarForm, setMostrarForm] = useState(false);
   const [form, setForm] = useState(TAREA_FORM_INICIAL);
@@ -38,6 +39,22 @@ function TareasModal({ subObra, puedeCrear, onClose }) {
     }
     load();
   }, [subObra.id, puedeCrear]);
+
+  async function toggleUrgente(tarea) {
+    setUrgenteEnCurso(tarea.id);
+    setError("");
+    try {
+      const data = await apiFetch(`/api/sub-obras/${subObra.id}/actividades/${tarea.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({ urgente: !tarea.urgente }),
+      });
+      setTareas((prev) => prev.map((t) => (t.id === tarea.id ? data.actividad : t)));
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setUrgenteEnCurso(null);
+    }
+  }
 
   function handleOpenForm() {
     setForm(TAREA_FORM_INICIAL);
@@ -102,6 +119,7 @@ function TareasModal({ subObra, puedeCrear, onClose }) {
                 <th>Plan inicio</th>
                 <th>Plan fin</th>
                 <th>Estado</th>
+                <th>Urgente</th>
               </tr>
             </thead>
             <tbody>
@@ -112,6 +130,22 @@ function TareasModal({ subObra, puedeCrear, onClose }) {
                   <td>{tarea.fechaFinPlan ? new Date(tarea.fechaFinPlan).toLocaleDateString() : "-"}</td>
                   <td>
                     <span className="role-pill">{tarea.estado}</span>
+                  </td>
+                  <td>
+                    {puedeMarcarUrgente ? (
+                      <button
+                        className={tarea.urgente ? "urgente-pill urgente-pill-clickable" : "btn-link"}
+                        type="button"
+                        onClick={() => toggleUrgente(tarea)}
+                        disabled={urgenteEnCurso === tarea.id}
+                      >
+                        {tarea.urgente ? "Urgente" : "Marcar urgente"}
+                      </button>
+                    ) : tarea.urgente ? (
+                      <span className="urgente-pill">Urgente</span>
+                    ) : (
+                      "-"
+                    )}
                   </td>
                 </tr>
               ))}

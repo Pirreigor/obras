@@ -588,6 +588,24 @@ body {
   white-space: nowrap;
 }
 
+.urgente-pill {
+  display: inline-block;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  background: var(--error);
+  border: 1px solid var(--error);
+  color: #fff;
+  padding: 3px 8px;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+
+.urgente-pill-clickable {
+  cursor: pointer;
+}
+
 .stacked-form {
   display: flex;
   flex-direction: column;
