@@ -53,22 +53,24 @@ function EmpresasPanel() {
         ) : empresas.length === 0 ? (
           <p className="muted">Todavia no hay empresas.</p>
         ) : (
-          <table className="data-table">
-            <thead>
-              <tr>
-                <th>Nombre</th>
-                <th>Creada</th>
-              </tr>
-            </thead>
-            <tbody>
-              {empresas.map((empresa) => (
-                <tr key={empresa.id}>
-                  <td>{empresa.nombre}</td>
-                  <td>{new Date(empresa.createdAt).toLocaleDateString()}</td>
+          <div className="table-scroll">
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th>Nombre</th>
+                  <th>Creada</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {empresas.map((empresa) => (
+                  <tr key={empresa.id}>
+                    <td>{empresa.nombre}</td>
+                    <td>{new Date(empresa.createdAt).toLocaleDateString()}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         )}
       </section>
 

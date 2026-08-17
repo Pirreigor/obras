@@ -149,38 +149,40 @@ function EquipoPanel({ currentUser }) {
         ) : usuarios.length === 0 ? (
           <p className="muted">Todavia no hay usuarios.</p>
         ) : (
-          <table className="data-table">
-            <thead>
-              <tr>
-                <th>Nombre</th>
-                <th>Email</th>
-                <th>Rol</th>
-                {puedeGestionarVistas && <th>Vistas</th>}
-              </tr>
-            </thead>
-            <tbody>
-              {usuarios.map((usuario) => (
-                <tr key={usuario.id}>
-                  <td>{usuario.name}</td>
-                  <td>{usuario.email}</td>
-                  <td>
-                    <span className="role-pill">{usuario.rol}</span>
-                  </td>
-                  {puedeGestionarVistas && (
-                    <td>
-                      {usuario.rol === "ADMINISTRADOR" ? (
-                        <span className="muted">Acceso total</span>
-                      ) : (
-                        <button className="btn-link" type="button" onClick={() => handleToggleVistas(usuario)}>
-                          {vistasUsuarioId === usuario.id ? "Cerrar" : "Gestionar vistas"}
-                        </button>
-                      )}
-                    </td>
-                  )}
+          <div className="table-scroll">
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th>Nombre</th>
+                  <th>Email</th>
+                  <th>Rol</th>
+                  {puedeGestionarVistas && <th>Vistas</th>}
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {usuarios.map((usuario) => (
+                  <tr key={usuario.id}>
+                    <td>{usuario.name}</td>
+                    <td>{usuario.email}</td>
+                    <td>
+                      <span className="role-pill">{usuario.rol}</span>
+                    </td>
+                    {puedeGestionarVistas && (
+                      <td>
+                        {usuario.rol === "ADMINISTRADOR" ? (
+                          <span className="muted">Acceso total</span>
+                        ) : (
+                          <button className="btn-link" type="button" onClick={() => handleToggleVistas(usuario)}>
+                            {vistasUsuarioId === usuario.id ? "Cerrar" : "Gestionar vistas"}
+                          </button>
+                        )}
+                      </td>
+                    )}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         )}
 
         {puedeGestionarVistas && usuarioSeleccionado && (
@@ -223,32 +225,34 @@ function EquipoPanel({ currentUser }) {
         {!loading && pendientes.length === 0 ? (
           <p className="muted">No hay invitaciones pendientes.</p>
         ) : (
-          <table className="data-table">
-            <thead>
-              <tr>
-                <th>Email</th>
-                <th>Rol</th>
-                <th>Vence</th>
-                <th></th>
-              </tr>
-            </thead>
-            <tbody>
-              {pendientes.map((invitacion) => (
-                <tr key={invitacion.id}>
-                  <td>{invitacion.email}</td>
-                  <td>
-                    <span className="role-pill">{invitacion.rol}</span>
-                  </td>
-                  <td>{new Date(invitacion.expiresAt).toLocaleDateString()}</td>
-                  <td>
-                    <button className="btn-link" type="button" onClick={() => handleRevoke(invitacion.id)}>
-                      Revocar
-                    </button>
-                  </td>
+          <div className="table-scroll">
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th>Email</th>
+                  <th>Rol</th>
+                  <th>Vence</th>
+                  <th></th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {pendientes.map((invitacion) => (
+                  <tr key={invitacion.id}>
+                    <td>{invitacion.email}</td>
+                    <td>
+                      <span className="role-pill">{invitacion.rol}</span>
+                    </td>
+                    <td>{new Date(invitacion.expiresAt).toLocaleDateString()}</td>
+                    <td>
+                      <button className="btn-link" type="button" onClick={() => handleRevoke(invitacion.id)}>
+                        Revocar
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         )}
       </section>
 

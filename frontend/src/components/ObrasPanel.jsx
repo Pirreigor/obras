@@ -36,6 +36,7 @@ function ObrasPanel() {
   const [subObraError, setSubObraError] = useState("");
   const [subObraForm, setSubObraForm] = useState(SUB_OBRA_FORM_INICIAL);
   const [submittingSubObra, setSubmittingSubObra] = useState(false);
+  const [mostrarModalSubObras, setMostrarModalSubObras] = useState(false);
   const [mostrarModalSubObra, setMostrarModalSubObra] = useState(false);
 
   async function loadObras() {
@@ -153,13 +154,9 @@ function ObrasPanel() {
   }
 
   async function handleSelectObra(obra) {
-    if (obraSeleccionadaId === obra.id) {
-      setObraSeleccionadaId(null);
-      return;
-    }
-
     setObraSeleccionadaId(obra.id);
     setSubObraError("");
+    setMostrarModalSubObras(true);
     setLoadingSubObras(true);
     try {
       const data = await apiFetch(`/api/obras/${obra.id}/sub-obras`);
@@ -231,80 +228,84 @@ function ObrasPanel() {
         ) : obras.length === 0 ? (
           <p className="muted">Todavia no hay obras.</p>
         ) : (
-          <table className="data-table">
-            <thead>
-              <tr>
-                <th>Nombre</th>
-                <th>Cliente</th>
-                <th>Localidad</th>
-                <th>Estado</th>
-                <th>Presupuesto</th>
-              </tr>
-            </thead>
-            <tbody>
-              {obras.map((obra) => (
-                <tr
-                  key={obra.id}
-                  className={obra.id === obraSeleccionadaId ? "row-selected" : "row-clickable"}
-                  onClick={() => handleSelectObra(obra)}
-                >
-                  <td>{obra.nombre}</td>
-                  <td>{obra.cliente || "-"}</td>
-                  <td>
-                    {obra.localidad?.zona?.nombre} &middot; {obra.localidad?.nombre}
-                  </td>
-                  <td>
-                    <span className="role-pill">{obra.estado}</span>
-                  </td>
-                  <td>{obra.presupuesto != null ? Number(obra.presupuesto).toLocaleString() : "-"}</td>
+          <div className="table-scroll">
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th>Nombre</th>
+                  <th>Cliente</th>
+                  <th>Localidad</th>
+                  <th>Estado</th>
+                  <th>Presupuesto</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {obras.map((obra) => (
+                  <tr
+                    key={obra.id}
+                    className={obra.id === obraSeleccionadaId ? "row-selected" : "row-clickable"}
+                    onClick={() => handleSelectObra(obra)}
+                  >
+                    <td>{obra.nombre}</td>
+                    <td>{obra.cliente || "-"}</td>
+                    <td>
+                      {obra.localidad?.zona?.nombre} &middot; {obra.localidad?.nombre}
+                    </td>
+                    <td>
+                      <span className="role-pill">{obra.estado}</span>
+                    </td>
+                    <td>{obra.presupuesto != null ? Number(obra.presupuesto).toLocaleString() : "-"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         )}
         {!loading && obras.length > 0 && <p className="muted vista-block">Toca una obra para ver sus sub-obras.</p>}
       </section>
 
-      {obraSeleccionada && (
-        <section className="panel-card vista-block">
+      {mostrarModalSubObras && obraSeleccionada && (
+        <Modal title={`Sub-obras de ${obraSeleccionada.nombre}`} onClose={() => setMostrarModalSubObras(false)}>
           <div className="panel-card-header">
-            <h2>Sub-obras de {obraSeleccionada.nombre}</h2>
+            <span className="muted">{subObras.length} sub-obra(s)</span>
             <button className="btn-small" type="button" onClick={handleOpenModalSubObra}>
               + Nueva sub-obra
             </button>
           </div>
-          {subObraError && !mostrarModalSubObra && <div className="form-error">{subObraError}</div>}
+          {subObraError && <div className="form-error">{subObraError}</div>}
           {loadingSubObras ? (
             <p className="muted">Cargando...</p>
           ) : subObras.length === 0 ? (
             <p className="muted">Todavia no hay sub-obras.</p>
           ) : (
-            <table className="data-table">
-              <thead>
-                <tr>
-                  <th>Nombre</th>
-                  <th>Estado</th>
-                  <th>Calidad/Produccion</th>
-                  <th>Residentes</th>
-                </tr>
-              </thead>
-              <tbody>
-                {subObras.map((subObra) => (
-                  <tr key={subObra.id}>
-                    <td>{subObra.nombre}</td>
-                    <td>
-                      <span className="role-pill">{subObra.estado}</span>
-                    </td>
-                    <td>{subObra.responsableCalidad?.name || "-"}</td>
-                    <td>
-                      {subObra.residentes.length === 0 ? "-" : subObra.residentes.map((r) => r.usuario.name).join(", ")}
-                    </td>
+            <div className="table-scroll">
+              <table className="data-table">
+                <thead>
+                  <tr>
+                    <th>Nombre</th>
+                    <th>Estado</th>
+                    <th>Calidad/Produccion</th>
+                    <th>Residentes</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {subObras.map((subObra) => (
+                    <tr key={subObra.id}>
+                      <td>{subObra.nombre}</td>
+                      <td>
+                        <span className="role-pill">{subObra.estado}</span>
+                      </td>
+                      <td>{subObra.responsableCalidad?.name || "-"}</td>
+                      <td>
+                        {subObra.residentes.length === 0 ? "-" : subObra.residentes.map((r) => r.usuario.name).join(", ")}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           )}
-        </section>
+        </Modal>
       )}
 
       {mostrarModalObra && (

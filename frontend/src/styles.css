@@ -411,10 +411,20 @@ body {
   margin-bottom: 14px;
 }
 
+.table-scroll {
+  overflow-x: auto;
+}
+
 .data-table {
   width: 100%;
+  min-width: 480px;
   border-collapse: collapse;
   font-size: 14px;
+}
+
+.data-table th,
+.data-table td {
+  white-space: nowrap;
 }
 
 .data-table th {
