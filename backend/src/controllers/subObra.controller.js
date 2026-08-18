@@ -386,4 +386,5 @@ module.exports = {
   cerrarActividad,
   listAvances,
   createAvance,
+  puedeGestionarSubObra,
 };

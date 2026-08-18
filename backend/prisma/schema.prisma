@@ -36,11 +36,18 @@ enum EstadoActividad {
   HECHA
 }
 
-enum EstadoPedido {
+enum TipoSolicitud {
+  MATERIAL
+  MAQUINARIA
+  RECURSO
+  ESPECIALISTA
+}
+
+enum EstadoSolicitud {
   SOLICITADO
   APROBADO
-  COMPRADO_EN_CAMINO
-  RECIBIDO
+  RECHAZADO
+  RESUELTO
 }
 
 enum EstadoInvitacion {
@@ -81,7 +88,8 @@ model Usuario {
   subObrasComoResidente   SubObraResidente[]
   registrosDiarios        RegistroDiario[]   @relation("RegistroDiarioCreadoPor")
   avancesCreados          Avance[]           @relation("AvanceCreadoPor")
-  pedidosCreados          PedidoMaterial[]   @relation("PedidoCreadoPor")
+  solicitudesCreadas      Solicitud[]        @relation("SolicitudCreadoPor")
+  solicitudesResueltas    Solicitud[]        @relation("SolicitudAprobadoPor")
   invitacionesEnviadas    Invitacion[]       @relation("InvitacionInvitadoPor")
   vistasAsignadas         UsuarioVista[]
 
@@ -202,7 +210,7 @@ model SubObra {
 
   actividadesProgramadas ActividadProgramada[]
   avances                Avance[]
-  pedidoItems            PedidoItemSubObra[]
+  solicitudes            Solicitud[]
   residentes             SubObraResidente[]
 
   createdAt DateTime @default(now())
@@ -303,7 +311,7 @@ model MaterialCatalogo {
   nombre       String
   unidadMedida String
 
-  items PedidoMaterialItem[]
+  solicitudes Solicitud[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -312,46 +320,28 @@ model MaterialCatalogo {
   @@map("materiales_catalogo")
 }
 
-model PedidoMaterial {
-  id          Int          @id @default(autoincrement())
-  creadoPorId Int?
-  creadoPor   Usuario?     @relation("PedidoCreadoPor", fields: [creadoPorId], references: [id], onDelete: SetNull)
-  fecha       DateTime     @default(now())
-  urgente     Boolean      @default(false)
-  estado      EstadoPedido @default(SOLICITADO)
-
-  items PedidoMaterialItem[]
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@map("pedidos_material")
-}
-
-model PedidoMaterialItem {
-  id                 Int              @id @default(autoincrement())
-  pedidoId           Int
-  pedido             PedidoMaterial   @relation(fields: [pedidoId], references: [id], onDelete: Cascade)
-  materialCatalogoId Int
-  materialCatalogo   MaterialCatalogo @relation(fields: [materialCatalogoId], references: [id], onDelete: Restrict)
-  cantidadTotal      Float
-
-  subObras PedidoItemSubObra[]
+// Pedido de material, maquinaria, recurso o especialista para una
+// sub-obra puntual. Para MATERIAL se elige del catalogo (cantidad +
+// unidad); para el resto alcanza con la descripcion libre.
+model Solicitud {
+  id                 Int               @id @default(autoincrement())
+  subObraId          Int
+  subObra            SubObra           @relation(fields: [subObraId], references: [id], onDelete: Cascade)
+  tipo               TipoSolicitud
+  materialCatalogoId Int?
+  materialCatalogo   MaterialCatalogo? @relation(fields: [materialCatalogoId], references: [id], onDelete: Restrict)
+  descripcion        String?
+  cantidad           Float?
+  fechaNecesaria     DateTime?
+  urgente            Boolean           @default(false)
+  estado             EstadoSolicitud   @default(SOLICITADO)
+  creadoPorId        Int?
+  creadoPor          Usuario?          @relation("SolicitudCreadoPor", fields: [creadoPorId], references: [id], onDelete: SetNull)
+  aprobadoPorId      Int?
+  aprobadoPor        Usuario?          @relation("SolicitudAprobadoPor", fields: [aprobadoPorId], references: [id], onDelete: SetNull)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  @@map("pedido_material_items")
-}
-
-model PedidoItemSubObra {
-  id                   Int                @id @default(autoincrement())
-  pedidoMaterialItemId Int
-  pedidoMaterialItem   PedidoMaterialItem @relation(fields: [pedidoMaterialItemId], references: [id], onDelete: Cascade)
-  subObraId            Int
-  subObra              SubObra            @relation(fields: [subObraId], references: [id], onDelete: Cascade)
-  cantidadAsignada     Float
-
-  @@unique([pedidoMaterialItemId, subObraId])
-  @@map("pedido_item_sub_obras")
+  @@map("solicitudes")
 }

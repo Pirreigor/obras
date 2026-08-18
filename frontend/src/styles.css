@@ -972,6 +972,23 @@ body {
   color: var(--accent-hover);
 }
 
+.field-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.field-row select {
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-family: var(--font-body);
+  font-size: 13px;
+  color: var(--ink);
+  background: var(--surface);
+}
+
 .invite-link-box {
   margin-top: 18px;
   padding: 14px;
