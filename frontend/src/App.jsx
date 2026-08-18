@@ -179,14 +179,14 @@ function AppShell({ user, onLogout }) {
     if (user.rol === "RESIDENTE" || user.rol === "CALIDAD_PRODUCCION") {
       list.push({ key: "calendario", label: "Calendario", render: () => <CalendarioPanel /> });
     }
+    // Pedidos no depende de una Vista asignable: todos los roles de la
+    // empresa lo ven, el backend filtra que solicitudes/pedidos ve cada uno.
+    list.push({ key: "pedidos", label: "Pedidos", render: () => <PedidosPanel currentUser={user} /> });
     if (user.vistas?.includes("obras")) {
       list.push({ key: "obras", label: "Obras", render: () => <ObrasPanel currentUser={user} /> });
     }
     if (user.vistas?.includes("equipo")) {
       list.push({ key: "equipo", label: "Equipo", render: () => <EquipoPanel currentUser={user} /> });
-    }
-    if (user.vistas?.includes("pedidos")) {
-      list.push({ key: "pedidos", label: "Pedidos", render: () => <PedidosPanel currentUser={user} /> });
     }
     return list;
   }, [user]);

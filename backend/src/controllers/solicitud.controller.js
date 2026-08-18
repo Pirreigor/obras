@@ -1,5 +1,5 @@
 const prisma = require("../utils/prisma");
-const { puedeGestionarSubObra } = require("./subObra.controller");
+const { puedeGestionarSubObra, puedeAprobarObra } = require("./subObra.controller");
 
 const TIPOS_VALIDOS = ["MATERIAL", "MAQUINARIA", "RECURSO", "ESPECIALISTA"];
 // APROBADO y RESUELTO solo se llegan a traves de un Pedido (agrupar con
@@ -23,11 +23,29 @@ function scopedWhere(req, extra = {}) {
   };
 }
 
+// Administrador y Supervisor ven todas las solicitudes de la empresa.
+// El resto solo las suyas: las que creo, las de una sub-obra donde esta
+// asignado, o las de una obra que lidera como residente.
+function alcancePorRol(user) {
+  if (user.rol === "ADMINISTRADOR" || user.rol === "SUPERVISOR") {
+    return {};
+  }
+  return {
+    OR: [
+      { creadoPorId: user.id },
+      { subObra: { responsableCalidadId: user.id } },
+      { subObra: { residentes: { some: { usuarioId: user.id } } } },
+      { subObra: { obra: { residenteId: user.id } } },
+    ],
+  };
+}
+
 async function list(req, res) {
   const { estado, tipo, subObraId } = req.query;
 
   const solicitudes = await prisma.solicitud.findMany({
     where: scopedWhere(req, {
+      ...alcancePorRol(req.user),
       estado: estado || undefined,
       tipo: tipo || undefined,
       subObraId: subObraId ? Number(subObraId) : undefined,
@@ -145,9 +163,16 @@ async function updateEstado(req, res) {
     return res.status(400).json({ message: "estado invalido" });
   }
 
-  const solicitud = await prisma.solicitud.findFirst({ where: scopedWhere(req, { id }) });
+  const solicitud = await prisma.solicitud.findFirst({
+    where: scopedWhere(req, { id }),
+    include: { subObra: { include: { obra: true } } },
+  });
   if (!solicitud) {
     return res.status(404).json({ message: "Solicitud no encontrada" });
+  }
+
+  if (!puedeAprobarObra(req.user, solicitud.subObra.obra)) {
+    return res.status(403).json({ message: "No tenes permiso para cambiar el estado de esta solicitud" });
   }
 
   const actualizada = await prisma.solicitud.update({

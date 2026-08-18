@@ -67,6 +67,11 @@ function AgruparPedidoModal({ cantidad, onClose, onConfirmar }) {
 
 function PedidosPanel({ currentUser }) {
   const esGestor = currentUser?.rol === "ADMINISTRADOR" || currentUser?.rol === "SUPERVISOR";
+  // Ademas de Administrador/Supervisor, un RESIDENTE puede ser el
+  // "residente lider" de alguna obra (Obra.residenteId) y por lo tanto
+  // tambien puede aprobar/agrupar/rechazar; el backend valida el detalle
+  // por obra, aca solo se decide si se muestran los controles.
+  const puedeAgrupar = esGestor || currentUser?.rol === "RESIDENTE";
 
   const [solicitudes, setSolicitudes] = useState([]);
   const [pedidos, setPedidos] = useState([]);
@@ -192,7 +197,7 @@ function PedidosPanel({ currentUser }) {
             </option>
           ))}
         </select>
-        {esGestor && seleccionadas.length > 0 && (
+        {puedeAgrupar && seleccionadas.length > 0 && (
           <button className="btn-primary" type="button" onClick={() => setMostrarAgrupar(true)}>
             Agrupar {seleccionadas.length} en un pedido
           </button>
@@ -209,7 +214,7 @@ function PedidosPanel({ currentUser }) {
           <table className="data-table">
             <thead>
               <tr>
-                {esGestor && <th></th>}
+                {puedeAgrupar && <th></th>}
                 <th>Sub-obra</th>
                 <th>Actividad</th>
                 <th>Tipo</th>
@@ -218,13 +223,13 @@ function PedidosPanel({ currentUser }) {
                 <th>Urgente</th>
                 <th>Estado</th>
                 <th>Pedido por</th>
-                {esGestor && <th>Acciones</th>}
+                {puedeAgrupar && <th>Acciones</th>}
               </tr>
             </thead>
             <tbody>
               {solicitudes.map((s) => (
                 <tr key={s.id}>
-                  {esGestor && (
+                  {puedeAgrupar && (
                     <td>
                       {s.estado === "SOLICITADO" && (
                         <input
@@ -245,9 +250,10 @@ function PedidosPanel({ currentUser }) {
                   <td>{s.urgente ? <span className="urgente-pill">Urgente</span> : "-"}</td>
                   <td>
                     <span className="role-pill">{s.estado}</span>
-                    {s.estado === "APROBADO" && s.pedido && (
+                    {(s.estado === "APROBADO" || s.estado === "RESUELTO") && s.pedido && (
                       <div className="muted">
-                        {s.pedido.factura ? `Factura ${s.pedido.factura}` : "Sin factura"}
+                        Pedido #{s.pedido.id}
+                        {s.pedido.factura ? ` · Factura ${s.pedido.factura}` : ""}
                         {s.pedido.fechaEstimadaLlegada
                           ? ` · llega ${s.pedido.fechaEstimadaLlegada.slice(0, 10)}`
                           : ""}
@@ -255,7 +261,7 @@ function PedidosPanel({ currentUser }) {
                     )}
                   </td>
                   <td>{s.creadoPor?.name || "-"}</td>
-                  {esGestor && (
+                  {puedeAgrupar && (
                     <td>
                       {s.estado === "SOLICITADO" && (
                         <button
@@ -284,23 +290,25 @@ function PedidosPanel({ currentUser }) {
           <table className="data-table">
             <thead>
               <tr>
+                <th>Codigo</th>
                 <th>Factura</th>
                 <th>Contiene</th>
                 <th>Fecha estimada</th>
                 <th>Fecha real de llegada</th>
                 <th>Creado por</th>
-                {esGestor && <th>Acciones</th>}
+                {puedeAgrupar && <th>Acciones</th>}
               </tr>
             </thead>
             <tbody>
               {pedidos.map((p) => (
                 <tr key={p.id}>
+                  <td>#{p.id}</td>
                   <td>{p.factura || "-"}</td>
                   <td>{p.solicitudes.length} solicitud(es)</td>
                   <td>{p.fechaEstimadaLlegada ? p.fechaEstimadaLlegada.slice(0, 10) : "-"}</td>
                   <td>{p.fechaLlegadaReal ? p.fechaLlegadaReal.slice(0, 10) : "-"}</td>
                   <td>{p.creadoPor?.name || "-"}</td>
-                  {esGestor && (
+                  {puedeAgrupar && (
                     <td>
                       {!p.fechaLlegadaReal && (
                         <button

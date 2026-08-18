@@ -39,6 +39,16 @@ function puedeGestionarSubObra(user, subObra) {
   return subObra.residentes?.some((r) => r.usuarioId === user.id) ?? false;
 }
 
+// Aprobar/rechazar/agrupar pedidos: Administrador y Supervisor siempre;
+// el "residente de residentes" (residente lider de la obra completa,
+// Obra.residenteId) tambien, para las obras que tiene a cargo.
+function puedeAprobarObra(user, obra) {
+  if (user.rol === "ADMINISTRADOR" || user.rol === "SUPERVISOR") {
+    return true;
+  }
+  return user.rol === "RESIDENTE" && obra?.residenteId === user.id;
+}
+
 async function listMias(req, res) {
   const subObras = await prisma.subObra.findMany({
     where: {
@@ -387,4 +397,5 @@ module.exports = {
   listAvances,
   createAvance,
   puedeGestionarSubObra,
+  puedeAprobarObra,
 };
