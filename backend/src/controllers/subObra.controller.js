@@ -243,9 +243,23 @@ async function updateActividad(req, res) {
   return res.json({ actividad: actualizada });
 }
 
-// Cerrar una actividad: registra el avance al 100% para el dia indicado
-// (con evidencia opcional) y marca la actividad completa como HECHA, con
-// la hora real de cierre en ese mismo dia.
+// Cantidad de dias que dura la actividad segun su plan (inclusive). Si
+// solo tiene una de las dos fechas, o ninguna, se toma como 1 dia.
+function contarDiasProgramados(actividad) {
+  const inicio = actividad.fechaInicioPlan ? actividad.fechaInicioPlan.toISOString().slice(0, 10) : null;
+  const fin = actividad.fechaFinPlan ? actividad.fechaFinPlan.toISOString().slice(0, 10) : null;
+  if (!inicio || !fin) {
+    return 1;
+  }
+  const dias = Math.round((new Date(`${fin}T00:00:00Z`) - new Date(`${inicio}T00:00:00Z`)) / 86400000) + 1;
+  return Math.max(1, dias);
+}
+
+// Marcar un dia de la actividad como hecho: registra el avance de ese
+// dia puntual (con evidencia opcional) repartiendo el 100% entre la
+// cantidad de dias que dura la actividad. Cuando ya se marcaron todos
+// sus dias, la actividad completa pasa a HECHA con la hora real de
+// cierre de ese ultimo dia.
 async function cerrarActividad(req, res) {
   const subObraId = Number(req.params.id);
   const actividadId = Number(req.params.actividadId);
@@ -267,12 +281,20 @@ async function cerrarActividad(req, res) {
     return res.status(403).json({ message: "No tenes permiso para cerrar esta actividad" });
   }
 
-  const actividad = await prisma.actividadProgramada.findFirst({ where: { id: actividadId, subObraId } });
+  const actividad = await prisma.actividadProgramada.findFirst({
+    where: { id: actividadId, subObraId },
+    include: { avances: { select: { fecha: true } } },
+  });
   if (!actividad) {
     return res.status(404).json({ message: "Actividad no encontrada" });
   }
 
-  const fechaCierre = new Date(`${fecha}T${new Date().toISOString().slice(11, 19)}Z`);
+  const totalDias = contarDiasProgramados(actividad);
+  const diasMarcados = new Set(actividad.avances.map((a) => a.fecha.toISOString().slice(0, 10)));
+  diasMarcados.add(fecha);
+  const completa = diasMarcados.size >= totalDias;
+  const porcentaje = Math.min(100, Math.round((diasMarcados.size / totalDias) * 100));
+  const fechaCierre = completa ? new Date(`${fecha}T${new Date().toISOString().slice(11, 19)}Z`) : null;
 
   const [avance, actividadActualizada] = await prisma.$transaction([
     prisma.avance.create({
@@ -280,7 +302,7 @@ async function cerrarActividad(req, res) {
         subObraId,
         actividadProgramadaId: actividadId,
         fecha: new Date(fecha),
-        porcentaje: 100,
+        porcentaje,
         descripcion: descripcion || null,
         imagenes: imagenUrl ? [imagenUrl] : [],
         creadoPorId: req.user.id,
@@ -289,7 +311,7 @@ async function cerrarActividad(req, res) {
     }),
     prisma.actividadProgramada.update({
       where: { id: actividadId },
-      data: { estado: "HECHA", fechaCierreReal: fechaCierre },
+      data: completa ? { estado: "HECHA", fechaCierreReal: fechaCierre } : { estado: "EN_CURSO" },
       include: { actividadCatalogo: true },
     }),
   ]);

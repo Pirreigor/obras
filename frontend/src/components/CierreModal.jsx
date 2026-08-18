@@ -2,12 +2,29 @@ import { useState } from "react";
 import { apiFetch } from "../api";
 import Modal from "./Modal";
 
+// Mismo criterio que el backend: cantidad de dias que dura la actividad
+// segun su plan (inclusive), 1 dia si falta alguna de las dos fechas.
+function contarDiasProgramados(actividad) {
+  const inicio = actividad.fechaInicioPlan ? actividad.fechaInicioPlan.slice(0, 10) : null;
+  const fin = actividad.fechaFinPlan ? actividad.fechaFinPlan.slice(0, 10) : null;
+  if (!inicio || !fin) {
+    return 1;
+  }
+  const dias = Math.round((new Date(`${fin}T00:00:00Z`) - new Date(`${inicio}T00:00:00Z`)) / 86400000) + 1;
+  return Math.max(1, dias);
+}
+
 function CierreModal({ actividad, fecha, onClose, onCerrado }) {
   const [descripcion, setDescripcion] = useState("");
   const [archivo, setArchivo] = useState(null);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
   const [avisoEvidencia, setAvisoEvidencia] = useState("");
+
+  const totalDias = contarDiasProgramados(actividad);
+  const diasMarcados = new Set((actividad.avances || []).map((a) => a.fecha.slice(0, 10)));
+  diasMarcados.add(fecha);
+  const porcentajeResultante = Math.min(100, Math.round((diasMarcados.size / totalDias) * 100));
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -43,10 +60,16 @@ function CierreModal({ actividad, fecha, onClose, onCerrado }) {
   }
 
   return (
-    <Modal title={`Cerrar ${actividad.actividadCatalogo?.nombre || "actividad"}`} onClose={onClose}>
+    <Modal title={`Marcar ${actividad.actividadCatalogo?.nombre || "actividad"}`} onClose={onClose}>
       <p className="muted">
         {actividad.subObra.nombre} &middot; {fecha}
       </p>
+      {totalDias > 1 && (
+        <p className="muted">
+          Esta actividad dura {totalDias} dias. Con esta marca llega a {porcentajeResultante}%
+          {porcentajeResultante >= 100 ? " y se cierra." : "."}
+        </p>
+      )}
       {error && <div className="form-error">{error}</div>}
       {avisoEvidencia && <div className="form-error">{avisoEvidencia}</div>}
       <form className="stacked-form" onSubmit={handleSubmit}>
@@ -64,7 +87,11 @@ function CierreModal({ actividad, fecha, onClose, onCerrado }) {
           />
         </div>
         <button className="btn-primary" type="submit" disabled={submitting}>
-          {submitting ? "Cerrando..." : "Marcar como completada (100%)"}
+          {submitting
+            ? "Guardando..."
+            : porcentajeResultante >= 100
+            ? "Marcar como completada (100%)"
+            : `Marcar este dia (${porcentajeResultante}%)`}
         </button>
       </form>
     </Modal>

@@ -371,16 +371,12 @@ function TablaSemanal({ actividades, dias, onCerrarClick }) {
               {dias.map((d) => {
                 const key = toKey(d);
                 const programada = estaProgramadaEseDia(a, key);
-                const hecha = a.estado === "HECHA";
-                const cerradaEseDia = hecha && a.fechaCierreReal && keyFromIso(a.fechaCierreReal) === key;
+                const marcadoEseDia = a.avances?.some((av) => keyFromIso(av.fecha) === key) ?? false;
                 return (
                   <td key={key} className="tabla-semanal-celda">
                     {programada &&
-                      (hecha ? (
-                        <span
-                          className="tabla-semanal-marca tabla-semanal-marca-hecha"
-                          title={cerradaEseDia ? "Completada este dia" : "Completada"}
-                        >
+                      (marcadoEseDia ? (
+                        <span className="tabla-semanal-marca tabla-semanal-marca-hecha" title="Ya marcado">
                           &#10003;
                         </span>
                       ) : (
@@ -388,7 +384,7 @@ function TablaSemanal({ actividades, dias, onCerrarClick }) {
                           type="button"
                           className="tabla-semanal-marca tabla-semanal-marca-pendiente"
                           onClick={() => onCerrarClick(a, key)}
-                          title="Marcar como completada este dia"
+                          title="Marcar este dia"
                         >
                           X
                         </button>
