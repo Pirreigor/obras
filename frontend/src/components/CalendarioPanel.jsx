@@ -404,6 +404,119 @@ function TablaSemanal({ actividades, dias, onCerrarClick }) {
   );
 }
 
+// Para una semana (7 dias), calcula en que columnas (0-6) cae cada
+// actividad programada y les reparte "carriles" (filas) para que las
+// que se superponen no queden una encima de otra, como en Google
+// Calendar. El rango de una actividad es contiguo por construccion
+// (viene de comparar fechas), asi que dentro de una semana tambien lo es.
+function segmentosDeSemana(semana, actividades) {
+  const segmentos = [];
+  for (const actividad of actividades) {
+    let inicioCol = -1;
+    let finCol = -1;
+    for (let i = 0; i < semana.length; i++) {
+      if (estaProgramadaEseDia(actividad, toKey(semana[i]))) {
+        if (inicioCol === -1) inicioCol = i;
+        finCol = i;
+      } else if (inicioCol !== -1) {
+        break;
+      }
+    }
+    if (inicioCol !== -1) {
+      segmentos.push({ actividad, inicioCol, finCol });
+    }
+  }
+
+  const ordenados = [...segmentos].sort((a, b) => a.inicioCol - b.inicioCol);
+  const finCarriles = [];
+  const conCarril = ordenados.map((segmento) => {
+    let carril = finCarriles.findIndex((fin) => fin < segmento.inicioCol);
+    if (carril === -1) {
+      carril = finCarriles.length;
+      finCarriles.push(segmento.finCol);
+    } else {
+      finCarriles[carril] = segmento.finCol;
+    }
+    return { ...segmento, carril };
+  });
+  return { segmentos: conCarril, totalCarriles: finCarriles.length };
+}
+
+// Vista mensual estilo Google Calendar: cada semana muestra los
+// numeros de dia arriba y, debajo, barras que atraviesan todos los
+// dias en que una actividad esta programada (en vez de solo marcar
+// cada dia suelto).
+function MesGrid({ dias, mesReferencia, avancesPorDia, actividades, onDiaClick, onBarraClick }) {
+  const hoyKey = toKey(new Date());
+  const semanas = [];
+  for (let i = 0; i < dias.length; i += 7) {
+    semanas.push(dias.slice(i, i + 7));
+  }
+
+  return (
+    <div className="mes-grid">
+      <div className="calendar-grid">
+        {DIAS_SEMANA.map((dia, i) => (
+          <div className="calendar-weekday" key={i}>
+            {dia}
+          </div>
+        ))}
+      </div>
+      {semanas.map((semana, si) => {
+        const { segmentos, totalCarriles } = segmentosDeSemana(semana, actividades);
+        return (
+          <div
+            className="mes-semana"
+            key={si}
+            style={{ gridTemplateRows: `auto repeat(${Math.max(totalCarriles, 1)}, 22px)` }}
+          >
+            {semana.map((dia, i) => {
+              const key = toKey(dia);
+              const esDelMes = dia.getMonth() === mesReferencia;
+              const tieneAvance = Boolean(avancesPorDia[key]?.length);
+              return (
+                <button
+                  key={key}
+                  type="button"
+                  className={`mes-dia-numero${esDelMes ? "" : " mes-dia-numero-out"}${
+                    key === hoyKey ? " mes-dia-numero-hoy" : ""
+                  }`}
+                  style={{ gridColumn: i + 1, gridRow: 1 }}
+                  onClick={() => onDiaClick(dia)}
+                >
+                  {dia.getDate()}
+                  {tieneAvance && <span className="calendar-dot" />}
+                </button>
+              );
+            })}
+            {segmentos.map(({ actividad, inicioCol, finCol, carril }) => {
+              const hecha = actividad.estado === "HECHA";
+              const diaCierre = estaProgramadaEseDia(actividad, hoyKey) ? hoyKey : toKey(semana[inicioCol]);
+              return (
+                <button
+                  key={actividad.id}
+                  type="button"
+                  className={`mes-barra${actividad.urgente ? " mes-barra-urgente" : ""}${
+                    hecha ? " mes-barra-hecha" : ""
+                  }`}
+                  style={{ gridColumn: `${inicioCol + 1} / ${finCol + 2}`, gridRow: carril + 2 }}
+                  disabled={hecha}
+                  onClick={hecha ? undefined : () => onBarraClick(actividad, diaCierre)}
+                  title={`${actividad.subObra.nombre} · ${actividad.actividadCatalogo?.nombre}${
+                    hecha ? " (completada)" : ""
+                  }`}
+                >
+                  {actividad.actividadCatalogo?.nombre}
+                </button>
+              );
+            })}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 function DetalleDia({
   fecha,
   programadas,
@@ -467,6 +580,129 @@ function DetalleDia({
   );
 }
 
+function NuevaActividadModal({ subObras, fechaSugerida, onClose, onCreada }) {
+  const [catalogo, setCatalogo] = useState([]);
+  const [subObraId, setSubObraId] = useState(subObras.length === 1 ? String(subObras[0].id) : "");
+  const [actividadCatalogoId, setActividadCatalogoId] = useState("");
+  const [actividadCatalogoNombre, setActividadCatalogoNombre] = useState("");
+  const [fechaInicioPlan, setFechaInicioPlan] = useState(`${fechaSugerida}T08:00`);
+  const [fechaFinPlan, setFechaFinPlan] = useState(`${fechaSugerida}T17:00`);
+  const [error, setError] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+
+  useEffect(() => {
+    apiFetch("/api/actividades-catalogo")
+      .then((data) => setCatalogo(data.catalogo))
+      .catch((err) => setError(err.message));
+  }, []);
+
+  async function handleSubmit(e) {
+    e.preventDefault();
+    setError("");
+    if (!subObraId) {
+      setError("Elegi en que sub-obra va la actividad");
+      return;
+    }
+    setSubmitting(true);
+    try {
+      const body = { fechaInicioPlan: fechaInicioPlan || undefined, fechaFinPlan: fechaFinPlan || undefined };
+      if (actividadCatalogoId === NUEVA) {
+        if (!actividadCatalogoNombre.trim()) {
+          throw new Error("Falta el nombre de la actividad nueva");
+        }
+        body.actividadCatalogoNombre = actividadCatalogoNombre.trim();
+      } else if (actividadCatalogoId) {
+        body.actividadCatalogoId = actividadCatalogoId;
+      } else {
+        throw new Error("Elegi una actividad del catalogo o crea una nueva");
+      }
+
+      const data = await apiFetch(`/api/sub-obras/${subObraId}/actividades`, {
+        method: "POST",
+        body: JSON.stringify(body),
+      });
+      onCreada(data.actividad);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <Modal title="Nueva actividad" onClose={onClose}>
+      {error && <div className="form-error">{error}</div>}
+      <form className="stacked-form" onSubmit={handleSubmit}>
+        <div className="field">
+          <label htmlFor="nuevaActSubObra">Sub-obra</label>
+          <select id="nuevaActSubObra" value={subObraId} onChange={(e) => setSubObraId(e.target.value)} required>
+            <option value="">Selecciona una sub-obra</option>
+            {subObras.map((s) => (
+              <option key={s.id} value={s.id}>
+                {s.nombre}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div className="field">
+          <label htmlFor="nuevaActCatalogo">Actividad</label>
+          <select
+            id="nuevaActCatalogo"
+            value={actividadCatalogoId}
+            onChange={(e) => setActividadCatalogoId(e.target.value)}
+            required
+          >
+            <option value="">Selecciona una actividad</option>
+            {catalogo.map((item) => (
+              <option key={item.id} value={item.id}>
+                {item.nombre}
+              </option>
+            ))}
+            <option value={NUEVA}>+ Crear actividad nueva</option>
+          </select>
+        </div>
+
+        {actividadCatalogoId === NUEVA && (
+          <div className="field">
+            <label htmlFor="nuevaActNombre">Nombre de la actividad nueva</label>
+            <input
+              id="nuevaActNombre"
+              value={actividadCatalogoNombre}
+              onChange={(e) => setActividadCatalogoNombre(e.target.value)}
+              required
+            />
+          </div>
+        )}
+
+        <div className="field">
+          <label htmlFor="nuevaActInicio">Fecha y hora prevista de inicio</label>
+          <input
+            id="nuevaActInicio"
+            type="datetime-local"
+            value={fechaInicioPlan}
+            onChange={(e) => setFechaInicioPlan(e.target.value)}
+          />
+        </div>
+
+        <div className="field">
+          <label htmlFor="nuevaActFin">Fecha y hora prevista de fin</label>
+          <input
+            id="nuevaActFin"
+            type="datetime-local"
+            value={fechaFinPlan}
+            onChange={(e) => setFechaFinPlan(e.target.value)}
+          />
+        </div>
+
+        <button className="btn-primary" type="submit" disabled={submitting}>
+          {submitting ? "Creando..." : "Crear actividad"}
+        </button>
+      </form>
+    </Modal>
+  );
+}
+
 function CalendarioPanel() {
   const [actividades, setActividades] = useState([]);
   const [subObras, setSubObras] = useState([]);
@@ -480,6 +716,7 @@ function CalendarioPanel() {
   const [diaSeleccionado, setDiaSeleccionado] = useState(null);
   const [formError, setFormError] = useState("");
   const [cierreObjetivo, setCierreObjetivo] = useState(null);
+  const [mostrarNuevaActividad, setMostrarNuevaActividad] = useState(false);
 
   async function load() {
     setLoading(true);
@@ -592,6 +829,9 @@ function CalendarioPanel() {
       <div className="panel-card-header">
         <h2 className="section-title">{etiquetaPeriodo}</h2>
         <div className="calendar-nav">
+          <button className="btn-small" type="button" onClick={() => setMostrarNuevaActividad(true)}>
+            + Nueva actividad
+          </button>
           <div className="calendar-view-toggle">
             <button
               className={vista === "mes" ? "active" : ""}
@@ -650,41 +890,24 @@ function CalendarioPanel() {
       ) : vista === "semana" ? (
         <TablaSemanal actividades={actividades} dias={dias} onCerrarClick={handleCerrarClick} />
       ) : (
-        <div className="calendar-grid">
-          {DIAS_SEMANA.map((dia, i) => (
-            <div className="calendar-weekday" key={i}>
-              {dia}
-            </div>
-          ))}
-          {dias.map((dia) => {
-            const key = toKey(dia);
-            const esDelMes = vista === "mes" ? dia.getMonth() === fechaReferencia.getMonth() : true;
-            const tieneAvance = Boolean(avancesPorDia[key]?.length);
-            const tieneProgramada = actividades.some((a) => estaProgramadaEseDia(a, key));
-            return (
-              <button
-                key={key}
-                type="button"
-                className={`calendar-day${esDelMes ? "" : " calendar-day-out"}${
-                  tieneAvance ? " calendar-day-marcado" : ""
-                }${tieneProgramada ? " calendar-day-programado" : ""}`}
-                onClick={() => {
-                  setDiaSeleccionado(dia);
-                  setFormError("");
-                }}
-              >
-                <span>{dia.getDate()}</span>
-                {tieneAvance && <span className="calendar-dot" />}
-              </button>
-            );
-          })}
-        </div>
+        <MesGrid
+          dias={dias}
+          mesReferencia={fechaReferencia.getMonth()}
+          avancesPorDia={avancesPorDia}
+          actividades={actividades}
+          onDiaClick={(dia) => {
+            setDiaSeleccionado(dia);
+            setFormError("");
+          }}
+          onBarraClick={handleCerrarClick}
+        />
       )}
 
       {vista === "mes" && (
         <div className="calendar-legend">
           <span>
-            <span className="calendar-legend-swatch calendar-legend-programado" /> Actividad programada
+            <span className="calendar-legend-swatch calendar-legend-programado" /> Actividad programada (click para
+            cerrar)
           </span>
           <span>
             <span className="calendar-legend-swatch calendar-legend-marcado" /> Avance registrado
@@ -716,6 +939,18 @@ function CalendarioPanel() {
           fecha={cierreObjetivo.fecha}
           onClose={() => setCierreObjetivo(null)}
           onCerrado={handleCerrado}
+        />
+      )}
+
+      {mostrarNuevaActividad && (
+        <NuevaActividadModal
+          subObras={subObras}
+          fechaSugerida={diaActualKey}
+          onClose={() => setMostrarNuevaActividad(false)}
+          onCreada={() => {
+            setMostrarNuevaActividad(false);
+            load();
+          }}
         />
       )}
     </div>
