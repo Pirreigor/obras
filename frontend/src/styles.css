@@ -30,6 +30,7 @@ body {
   font-family: var(--font-body);
   background: var(--paper);
   color: var(--ink);
+  overflow-x: hidden;
 }
 
 :focus-visible {
@@ -365,8 +366,18 @@ body {
 
 .calendar-nav {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 10px;
+}
+
+.dia-detalle-footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 10px;
 }
 
 .calendar-view-toggle {
@@ -724,6 +735,7 @@ body {
 
 .panel-card-header {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
   gap: 16px;

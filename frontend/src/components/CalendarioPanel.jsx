@@ -513,41 +513,20 @@ function MesGrid({ dias, mesReferencia, avancesPorDia, actividades, onDiaClick, 
   );
 }
 
-function DetalleDia({
-  fecha,
-  programadas,
-  avances,
-  subObras,
-  actividades,
-  onSaved,
-  formError,
-  setFormError,
-  timeline,
-  onCerrarClick,
-}) {
+function DetalleDia({ fecha, programadas, avances, subObras, actividades, onSaved, formError, setFormError }) {
   return (
     <>
-      {timeline ? (
+      {programadas.length > 0 && (
         <div className="vista-block">
-          <TimelineDia fecha={fecha} actividades={actividades} onCerrarClick={onCerrarClick} />
-          <p className="muted timeline-leyenda">
-            <span className="timeline-leyenda-swatch timeline-leyenda-urgente" /> Urgente &nbsp;
-            <span className="timeline-leyenda-swatch timeline-leyenda-hecha" /> Completada
-          </p>
-        </div>
-      ) : (
-        programadas.length > 0 && (
-          <div className="vista-block">
-            <h3>Actividades programadas este dia</h3>
-            <div className="vista-checklist">
-              {programadas.map((a) => (
-                <div key={a.id} className="muted">
-                  {a.subObra.nombre} &middot; {a.actividadCatalogo?.nombre}
-                </div>
-              ))}
-            </div>
+          <h3>Actividades programadas este dia</h3>
+          <div className="vista-checklist">
+            {programadas.map((a) => (
+              <div key={a.id} className="muted">
+                {a.subObra.nombre} &middot; {a.actividadCatalogo?.nombre}
+              </div>
+            ))}
           </div>
-        )
+        </div>
       )}
       {avances.length > 0 && (
         <div className="vista-block">
@@ -713,6 +692,7 @@ function CalendarioPanel() {
   const [formError, setFormError] = useState("");
   const [cierreObjetivo, setCierreObjetivo] = useState(null);
   const [mostrarNuevaActividad, setMostrarNuevaActividad] = useState(false);
+  const [mostrarRegistroAvance, setMostrarRegistroAvance] = useState(false);
 
   async function load() {
     setLoading(true);
@@ -870,18 +850,16 @@ function CalendarioPanel() {
         <p className="muted">Todavia no tenes sub-obras asignadas.</p>
       ) : vista === "dia" ? (
         <div className="calendar-dia-detalle">
-          <DetalleDia
-            fecha={diaActualKey}
-            programadas={programadasDiaActual}
-            avances={avancesDiaActual}
-            subObras={subObras}
-            actividades={actividades}
-            onSaved={handleAvanceGuardado}
-            formError={formError}
-            setFormError={setFormError}
-            timeline
-            onCerrarClick={handleCerrarClick}
-          />
+          <TimelineDia fecha={diaActualKey} actividades={actividades} onCerrarClick={handleCerrarClick} />
+          <div className="dia-detalle-footer">
+            <p className="muted timeline-leyenda">
+              <span className="timeline-leyenda-swatch timeline-leyenda-urgente" /> Urgente &nbsp;
+              <span className="timeline-leyenda-swatch timeline-leyenda-hecha" /> Completada
+            </p>
+            <button className="btn-small" type="button" onClick={() => setMostrarRegistroAvance(true)}>
+              + Registrar avance
+            </button>
+          </div>
         </div>
       ) : vista === "semana" ? (
         <TablaSemanal actividades={actividades} dias={dias} onCerrarClick={handleCerrarClick} />
@@ -920,6 +898,24 @@ function CalendarioPanel() {
             fecha={toKey(diaSeleccionado)}
             programadas={programadasDelDia}
             avances={avancesDelDia}
+            subObras={subObras}
+            actividades={actividades}
+            onSaved={handleAvanceGuardado}
+            formError={formError}
+            setFormError={setFormError}
+          />
+        </Modal>
+      )}
+
+      {mostrarRegistroAvance && (
+        <Modal
+          title={`Avance del ${fechaReferencia.getDate()} de ${MESES[fechaReferencia.getMonth()]}`}
+          onClose={() => setMostrarRegistroAvance(false)}
+        >
+          <DetalleDia
+            fecha={diaActualKey}
+            programadas={[]}
+            avances={avancesDiaActual}
             subObras={subObras}
             actividades={actividades}
             onSaved={handleAvanceGuardado}
