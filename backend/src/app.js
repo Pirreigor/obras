@@ -13,6 +13,7 @@ const calendarioRoutes = require("./routes/calendario.routes");
 const uploadRoutes = require("./routes/upload.routes");
 const materialCatalogoRoutes = require("./routes/materialCatalogo.routes");
 const solicitudRoutes = require("./routes/solicitud.routes");
+const pedidoRoutes = require("./routes/pedido.routes");
 
 const { notFoundHandler, errorHandler } = require("./middleware/error.middleware");
 
@@ -37,6 +38,7 @@ app.use("/api/calendario", calendarioRoutes);
 app.use("/api/uploads", uploadRoutes);
 app.use("/api/materiales-catalogo", materialCatalogoRoutes);
 app.use("/api/solicitudes", solicitudRoutes);
+app.use("/api/pedidos", pedidoRoutes);
 
 app.use(notFoundHandler);
 app.use(errorHandler);

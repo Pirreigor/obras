@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { apiFetch } from "../api";
 import Modal from "./Modal";
 import CierreModal from "./CierreModal";
+import NuevaSolicitudModal from "./NuevaSolicitudModal";
 
 const NUEVA = "__nueva__";
 const DIAS_SEMANA = ["L", "M", "M", "J", "V", "S", "D"];
@@ -693,6 +694,7 @@ function CalendarioPanel() {
   const [cierreObjetivo, setCierreObjetivo] = useState(null);
   const [mostrarNuevaActividad, setMostrarNuevaActividad] = useState(false);
   const [mostrarRegistroAvance, setMostrarRegistroAvance] = useState(false);
+  const [mostrarPedido, setMostrarPedido] = useState(false);
 
   async function load() {
     setLoading(true);
@@ -807,6 +809,9 @@ function CalendarioPanel() {
         <div className="calendar-nav">
           <button className="btn-small" type="button" onClick={() => setMostrarNuevaActividad(true)}>
             + Nueva actividad
+          </button>
+          <button className="btn-small" type="button" onClick={() => setMostrarPedido(true)}>
+            + Pedir
           </button>
           <div className="calendar-view-toggle">
             <button
@@ -943,6 +948,14 @@ function CalendarioPanel() {
             setMostrarNuevaActividad(false);
             load();
           }}
+        />
+      )}
+
+      {mostrarPedido && (
+        <NuevaSolicitudModal
+          subObras={subObras}
+          onClose={() => setMostrarPedido(false)}
+          onCreada={() => setMostrarPedido(false)}
         />
       )}
     </div>

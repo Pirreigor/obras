@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { apiFetch } from "../api";
 import Modal from "./Modal";
+import NuevaSolicitudModal from "./NuevaSolicitudModal";
 
 const NUEVA = "__nueva__";
 const ACTIVIDAD_FORM_INICIAL = {
@@ -33,6 +34,8 @@ function ActividadesModal({ subObra, puedeCrear, puedeMarcarUrgente, onClose }) 
   const [form, setForm] = useState(ACTIVIDAD_FORM_INICIAL);
   const [formError, setFormError] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [mostrarPedido, setMostrarPedido] = useState(false);
+  const [actividadParaPedido, setActividadParaPedido] = useState(null);
 
   useEffect(() => {
     async function load() {
@@ -133,9 +136,21 @@ function ActividadesModal({ subObra, puedeCrear, puedeMarcarUrgente, onClose }) 
       {puedeCrear && (
         <div className="panel-card-header">
           <span className="muted">{actividades.length} actividad(es)</span>
-          <button className="btn-small" type="button" onClick={handleOpenForm}>
-            + Nueva actividad
-          </button>
+          <div className="calendar-nav">
+            <button
+              className="btn-small"
+              type="button"
+              onClick={() => {
+                setActividadParaPedido(null);
+                setMostrarPedido(true);
+              }}
+            >
+              + Pedir
+            </button>
+            <button className="btn-small" type="button" onClick={handleOpenForm}>
+              + Nueva actividad
+            </button>
+          </div>
         </div>
       )}
       {error && <div className="form-error">{error}</div>}
@@ -154,6 +169,7 @@ function ActividadesModal({ subObra, puedeCrear, puedeMarcarUrgente, onClose }) 
                 <th>Estado</th>
                 <th>Cierre real</th>
                 <th>Urgente</th>
+                {puedeCrear && <th>Pedido</th>}
               </tr>
             </thead>
             <tbody>
@@ -197,6 +213,20 @@ function ActividadesModal({ subObra, puedeCrear, puedeMarcarUrgente, onClose }) 
                       "-"
                     )}
                   </td>
+                  {puedeCrear && (
+                    <td>
+                      <button
+                        className="btn-link"
+                        type="button"
+                        onClick={() => {
+                          setActividadParaPedido(actividad.id);
+                          setMostrarPedido(true);
+                        }}
+                      >
+                        Pedir
+                      </button>
+                    </td>
+                  )}
                 </tr>
               ))}
             </tbody>
@@ -263,6 +293,16 @@ function ActividadesModal({ subObra, puedeCrear, puedeMarcarUrgente, onClose }) 
             </button>
           </form>
         </Modal>
+      )}
+
+      {mostrarPedido && (
+        <NuevaSolicitudModal
+          subObras={[subObra]}
+          subObraFijaId={subObra.id}
+          actividadFijaId={actividadParaPedido}
+          onClose={() => setMostrarPedido(false)}
+          onCreada={() => setMostrarPedido(false)}
+        />
       )}
     </Modal>
   );

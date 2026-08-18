@@ -65,6 +65,7 @@ model Empresa {
   zonas               Zona[]
   actividadesCatalogo ActividadCatalogo[]
   materialesCatalogo  MaterialCatalogo[]
+  pedidos             Pedido[]
   invitaciones        Invitacion[]
 
   createdAt DateTime @default(now())
@@ -90,6 +91,7 @@ model Usuario {
   avancesCreados          Avance[]           @relation("AvanceCreadoPor")
   solicitudesCreadas      Solicitud[]        @relation("SolicitudCreadoPor")
   solicitudesResueltas    Solicitud[]        @relation("SolicitudAprobadoPor")
+  pedidosCreados          Pedido[]           @relation("PedidoCreadoPor")
   invitacionesEnviadas    Invitacion[]       @relation("InvitacionInvitadoPor")
   vistasAsignadas         UsuarioVista[]
 
@@ -262,6 +264,7 @@ model ActividadProgramada {
 
   registrosDiarios RegistroDiario[]
   avances          Avance[]
+  solicitudes      Solicitud[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -321,27 +324,55 @@ model MaterialCatalogo {
 }
 
 // Pedido de material, maquinaria, recurso o especialista para una
-// sub-obra puntual. Para MATERIAL se elige del catalogo (cantidad +
-// unidad); para el resto alcanza con la descripcion libre.
+// sub-obra puntual (opcionalmente ligado a una actividad concreta).
+// Para MATERIAL se elige del catalogo (cantidad + unidad); para el
+// resto alcanza con la descripcion libre. Cuando se aprueba, queda
+// agrupada dentro de un Pedido (factura + fecha estimada de llegada).
 model Solicitud {
-  id                 Int               @id @default(autoincrement())
-  subObraId          Int
-  subObra            SubObra           @relation(fields: [subObraId], references: [id], onDelete: Cascade)
-  tipo               TipoSolicitud
-  materialCatalogoId Int?
-  materialCatalogo   MaterialCatalogo? @relation(fields: [materialCatalogoId], references: [id], onDelete: Restrict)
-  descripcion        String?
-  cantidad           Float?
-  fechaNecesaria     DateTime?
-  urgente            Boolean           @default(false)
-  estado             EstadoSolicitud   @default(SOLICITADO)
-  creadoPorId        Int?
-  creadoPor          Usuario?          @relation("SolicitudCreadoPor", fields: [creadoPorId], references: [id], onDelete: SetNull)
-  aprobadoPorId      Int?
-  aprobadoPor        Usuario?          @relation("SolicitudAprobadoPor", fields: [aprobadoPorId], references: [id], onDelete: SetNull)
+  id                    Int                  @id @default(autoincrement())
+  subObraId             Int
+  subObra               SubObra              @relation(fields: [subObraId], references: [id], onDelete: Cascade)
+  actividadProgramadaId Int?
+  actividadProgramada   ActividadProgramada? @relation(fields: [actividadProgramadaId], references: [id], onDelete: SetNull)
+  tipo                  TipoSolicitud
+  materialCatalogoId    Int?
+  materialCatalogo      MaterialCatalogo?    @relation(fields: [materialCatalogoId], references: [id], onDelete: Restrict)
+  descripcion           String?
+  cantidad              Float?
+  fechaNecesaria        DateTime?
+  urgente               Boolean              @default(false)
+  estado                EstadoSolicitud      @default(SOLICITADO)
+  creadoPorId           Int?
+  creadoPor             Usuario?             @relation("SolicitudCreadoPor", fields: [creadoPorId], references: [id], onDelete: SetNull)
+  aprobadoPorId         Int?
+  aprobadoPor           Usuario?             @relation("SolicitudAprobadoPor", fields: [aprobadoPorId], references: [id], onDelete: SetNull)
+  pedidoId              Int?
+  pedido                Pedido?              @relation(fields: [pedidoId], references: [id], onDelete: SetNull)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@map("solicitudes")
+}
+
+// Agrupa varias Solicitudes ya aprobadas en una sola compra/gestion:
+// factura y fecha estimada de llegada al aprobar, fecha real cuando
+// efectivamente llega (mismo criterio que fechaCierreReal en
+// ActividadProgramada: previsto vs. real).
+model Pedido {
+  id                   Int       @id @default(autoincrement())
+  empresaId            Int
+  empresa              Empresa   @relation(fields: [empresaId], references: [id], onDelete: Cascade)
+  factura              String?
+  fechaEstimadaLlegada DateTime?
+  fechaLlegadaReal     DateTime?
+  creadoPorId          Int?
+  creadoPor            Usuario?  @relation("PedidoCreadoPor", fields: [creadoPorId], references: [id], onDelete: SetNull)
+
+  solicitudes Solicitud[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("pedidos")
 }

@@ -2,13 +2,18 @@ const prisma = require("../utils/prisma");
 const { puedeGestionarSubObra } = require("./subObra.controller");
 
 const TIPOS_VALIDOS = ["MATERIAL", "MAQUINARIA", "RECURSO", "ESPECIALISTA"];
-const ESTADOS_VALIDOS = ["SOLICITADO", "APROBADO", "RECHAZADO", "RESUELTO"];
+// APROBADO y RESUELTO solo se llegan a traves de un Pedido (agrupar con
+// factura/fecha estimada, y marcarlo recibido); esta ruta solo permite
+// rechazar o reabrir una solicitud.
+const ESTADOS_VALIDOS_DIRECTOS = ["SOLICITADO", "RECHAZADO"];
 
 const SOLICITUD_INCLUDE = {
   subObra: { select: { id: true, nombre: true, obra: { select: { id: true, nombre: true } } } },
   materialCatalogo: true,
+  actividadProgramada: { include: { actividadCatalogo: true } },
   creadoPor: { select: { id: true, name: true } },
   aprobadoPor: { select: { id: true, name: true } },
+  pedido: true,
 };
 
 function scopedWhere(req, extra = {}) {
@@ -37,6 +42,7 @@ async function list(req, res) {
 async function create(req, res) {
   const {
     subObraId,
+    actividadProgramadaId,
     tipo,
     materialCatalogoId,
     materialCatalogoNombre,
@@ -64,6 +70,17 @@ async function create(req, res) {
 
   if (!puedeGestionarSubObra(req.user, subObra)) {
     return res.status(403).json({ message: "No tenes permiso para solicitar en esta sub-obra" });
+  }
+
+  let actividadId = null;
+  if (actividadProgramadaId != null) {
+    const actividad = await prisma.actividadProgramada.findFirst({
+      where: { id: Number(actividadProgramadaId), subObraId: subObra.id },
+    });
+    if (!actividad) {
+      return res.status(404).json({ message: "Actividad no encontrada en esta sub-obra" });
+    }
+    actividadId = actividad.id;
   }
 
   let catalogoId = null;
@@ -105,6 +122,7 @@ async function create(req, res) {
   const solicitud = await prisma.solicitud.create({
     data: {
       subObraId: subObra.id,
+      actividadProgramadaId: actividadId,
       tipo,
       materialCatalogoId: catalogoId,
       cantidad: tipo === "MATERIAL" ? Number(cantidad) : null,
@@ -123,7 +141,7 @@ async function updateEstado(req, res) {
   const id = Number(req.params.id);
   const { estado } = req.body;
 
-  if (!ESTADOS_VALIDOS.includes(estado)) {
+  if (!ESTADOS_VALIDOS_DIRECTOS.includes(estado)) {
     return res.status(400).json({ message: "estado invalido" });
   }
 
