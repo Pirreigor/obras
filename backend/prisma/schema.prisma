@@ -209,6 +209,10 @@ model SubObra {
   estado               EstadoSubObra @default(ACTIVA)
   responsableCalidadId Int?
   responsableCalidad   Usuario?      @relation("SubObraResponsableCalidad", fields: [responsableCalidadId], references: [id], onDelete: SetNull)
+  // Numero de partida presupuestaria y su archivo de respaldo (PDF/Excel/
+  // imagen), ambos opcionales, cargados al crear la sub-obra.
+  numeroPartida        String?
+  archivoPartidaUrl    String?
 
   actividadesProgramadas ActividadProgramada[]
   avances                Avance[]

@@ -18,7 +18,13 @@ const FORM_INICIAL = {
   localidadNombreNueva: "",
 };
 
-const SUB_OBRA_FORM_INICIAL = { nombre: "", descripcion: "", responsableCalidadId: "", residenteIds: [] };
+const SUB_OBRA_FORM_INICIAL = {
+  nombre: "",
+  descripcion: "",
+  responsableCalidadId: "",
+  residenteIds: [],
+  numeroPartida: "",
+};
 
 function ObrasPanel({ currentUser }) {
   const puedeCrearActividades = currentUser?.rol === "ADMINISTRADOR" || currentUser?.rol === "SUPERVISOR";
@@ -38,6 +44,7 @@ function ObrasPanel({ currentUser }) {
   const [loadingSubObras, setLoadingSubObras] = useState(false);
   const [subObraError, setSubObraError] = useState("");
   const [subObraForm, setSubObraForm] = useState(SUB_OBRA_FORM_INICIAL);
+  const [archivoPartida, setArchivoPartida] = useState(null);
   const [submittingSubObra, setSubmittingSubObra] = useState(false);
   const [mostrarModalSubObras, setMostrarModalSubObras] = useState(false);
   const [mostrarModalSubObra, setMostrarModalSubObra] = useState(false);
@@ -174,6 +181,7 @@ function ObrasPanel({ currentUser }) {
 
   function handleOpenModalSubObra() {
     setSubObraForm(SUB_OBRA_FORM_INICIAL);
+    setArchivoPartida(null);
     setSubObraError("");
     setMostrarModalSubObra(true);
   }
@@ -192,6 +200,19 @@ function ObrasPanel({ currentUser }) {
     setSubObraError("");
     setSubmittingSubObra(true);
     try {
+      let archivoPartidaUrl;
+      if (archivoPartida) {
+        try {
+          const formData = new FormData();
+          formData.append("evidencia", archivoPartida);
+          formData.append("carpeta", "partidas");
+          const subida = await apiFetch("/api/uploads", { method: "POST", body: formData });
+          archivoPartidaUrl = subida.url;
+        } catch (err) {
+          throw new Error(`No se pudo subir el archivo de partida: ${err.message}`);
+        }
+      }
+
       const data = await apiFetch(`/api/obras/${obraSeleccionadaId}/sub-obras`, {
         method: "POST",
         body: JSON.stringify({
@@ -199,10 +220,13 @@ function ObrasPanel({ currentUser }) {
           descripcion: subObraForm.descripcion || undefined,
           responsableCalidadId: subObraForm.responsableCalidadId || undefined,
           residenteIds: subObraForm.residenteIds,
+          numeroPartida: subObraForm.numeroPartida || undefined,
+          archivoPartidaUrl,
         }),
       });
       setSubObras((prev) => [data.subObra, ...prev]);
       setSubObraForm(SUB_OBRA_FORM_INICIAL);
+      setArchivoPartida(null);
       setMostrarModalSubObra(false);
     } catch (err) {
       setSubObraError(err.message);
@@ -296,6 +320,7 @@ function ObrasPanel({ currentUser }) {
                       <th>Estado</th>
                       <th>Calidad/Produccion</th>
                       <th>Residentes</th>
+                      <th>Partida</th>
                       <th>Avance</th>
                     </tr>
                   </thead>
@@ -309,6 +334,22 @@ function ObrasPanel({ currentUser }) {
                         <td>{subObra.responsableCalidad?.name || "-"}</td>
                         <td>
                           {subObra.residentes.length === 0 ? "-" : subObra.residentes.map((r) => r.usuario.name).join(", ")}
+                        </td>
+                        <td>
+                          {subObra.numeroPartida || "-"}
+                          {subObra.archivoPartidaUrl && (
+                            <>
+                              {" "}
+                              <a
+                                href={subObra.archivoPartidaUrl}
+                                target="_blank"
+                                rel="noreferrer"
+                                onClick={(e) => e.stopPropagation()}
+                              >
+                                Ver archivo
+                              </a>
+                            </>
+                          )}
                         </td>
                         <td>
                           <ProgressBar value={subObra.porcentaje} />
@@ -489,6 +530,24 @@ function ObrasPanel({ currentUser }) {
                   </option>
                 ))}
               </select>
+            </div>
+
+            <div className="field">
+              <label htmlFor="subObraNumeroPartida">Numero de partida (opcional)</label>
+              <input
+                id="subObraNumeroPartida"
+                value={subObraForm.numeroPartida}
+                onChange={(e) => setSubObraForm({ ...subObraForm, numeroPartida: e.target.value })}
+              />
+            </div>
+
+            <div className="field">
+              <label htmlFor="subObraArchivoPartida">Archivo de partida (opcional)</label>
+              <input
+                id="subObraArchivoPartida"
+                type="file"
+                onChange={(e) => setArchivoPartida(e.target.files?.[0] || null)}
+              />
             </div>
 
             <div className="field">

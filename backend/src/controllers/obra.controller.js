@@ -191,7 +191,7 @@ async function listSubObras(req, res) {
 
 async function createSubObra(req, res) {
   const obraId = Number(req.params.id);
-  const { nombre, descripcion, responsableCalidadId, residenteIds } = req.body;
+  const { nombre, descripcion, responsableCalidadId, residenteIds, numeroPartida, archivoPartidaUrl } = req.body;
 
   if (!nombre) {
     return res.status(400).json({ message: "nombre es obligatorio" });
@@ -231,6 +231,8 @@ async function createSubObra(req, res) {
         nombre,
         descripcion,
         responsableCalidadId: responsableCalidadId != null ? Number(responsableCalidadId) : null,
+        numeroPartida: numeroPartida || null,
+        archivoPartidaUrl: archivoPartidaUrl || null,
       },
     });
 
