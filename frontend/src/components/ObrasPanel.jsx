@@ -237,7 +237,9 @@ function ObrasPanel({ currentUser }) {
 
   const localidadesDisponibles = form.zonaId && form.zonaId !== NUEVA ? localidadesPorZona[form.zonaId] || [] : [];
   const necesitaLocalidadNueva = form.zonaId === NUEVA || form.localidadId === NUEVA;
-  const residentesDisponibles = usuarios.filter((u) => u.rol === "RESIDENTE");
+  // No se limita a Residentes: cualquier usuario de la empresa puede
+  // formar parte del equipo asignado a una sub-obra.
+  const equipoDisponible = usuarios;
   const calidadDisponibles = usuarios.filter((u) => u.rol === "CALIDAD_PRODUCCION");
   const obraSeleccionada = obras.find((o) => o.id === obraSeleccionadaId);
 
@@ -319,7 +321,7 @@ function ObrasPanel({ currentUser }) {
                       <th>Nombre</th>
                       <th>Estado</th>
                       <th>Calidad/Produccion</th>
-                      <th>Residentes</th>
+                      <th>Equipo</th>
                       <th>Partida</th>
                       <th>Avance</th>
                     </tr>
@@ -551,19 +553,19 @@ function ObrasPanel({ currentUser }) {
             </div>
 
             <div className="field">
-              <label>Residentes asignados</label>
-              {residentesDisponibles.length === 0 ? (
-                <p className="muted">No hay usuarios con rol RESIDENTE todavia.</p>
+              <label>Equipo asignado (opcional)</label>
+              {equipoDisponible.length === 0 ? (
+                <p className="muted">Todavia no hay usuarios en el equipo.</p>
               ) : (
                 <div className="vista-checklist">
-                  {residentesDisponibles.map((usuario) => (
+                  {equipoDisponible.map((usuario) => (
                     <label key={usuario.id} className="vista-check">
                       <input
                         type="checkbox"
                         checked={subObraForm.residenteIds.includes(usuario.id)}
                         onChange={() => toggleResidente(usuario.id)}
                       />
-                      {usuario.name}
+                      {usuario.name} <span className="muted">({usuario.rol})</span>
                     </label>
                   ))}
                 </div>

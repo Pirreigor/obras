@@ -211,16 +211,17 @@ async function createSubObra(req, res) {
     }
   }
 
+  // No se restringe por rol: ademas de Residentes, un Supervisor o
+  // Calidad/Produccion tambien puede formar parte del equipo asignado
+  // a una sub-obra puntual.
   let residentes = [];
   if (Array.isArray(residenteIds) && residenteIds.length > 0) {
     const ids = residenteIds.map(Number);
     residentes = await prisma.usuario.findMany({
-      where: { id: { in: ids }, empresaId: req.user.empresaId, rol: "RESIDENTE" },
+      where: { id: { in: ids }, empresaId: req.user.empresaId },
     });
     if (residentes.length !== new Set(ids).size) {
-      return res
-        .status(404)
-        .json({ message: "Alguno de los residentes indicados no existe o no tiene rol RESIDENTE" });
+      return res.status(404).json({ message: "Alguno de los usuarios indicados no existe" });
     }
   }
 
