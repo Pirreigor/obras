@@ -24,6 +24,6 @@ router.patch("/:id", requireRole("ADMINISTRADOR"), update);
 router.delete("/:id", requireRole("ADMINISTRADOR"), remove);
 
 router.get("/:id/sub-obras", listSubObras);
-router.post("/:id/sub-obras", requireRole("ADMINISTRADOR"), createSubObra);
+router.post("/:id/sub-obras", requireRole("ADMINISTRADOR", "SUPERVISOR"), createSubObra);
 
 module.exports = router;

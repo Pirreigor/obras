@@ -25,6 +25,7 @@ function EquipoPanel({ currentUser }) {
   const [savingVistas, setSavingVistas] = useState(false);
   const [savedVistas, setSavedVistas] = useState(false);
   const [vistasError, setVistasError] = useState("");
+  const [cambiandoRolId, setCambiandoRolId] = useState(null);
 
   async function load() {
     setLoading(true);
@@ -84,6 +85,22 @@ function EquipoPanel({ currentUser }) {
       await load();
     } catch (err) {
       setListError(err.message);
+    }
+  }
+
+  async function handleCambiarRol(usuario, rol) {
+    setCambiandoRolId(usuario.id);
+    setListError("");
+    try {
+      const data = await apiFetch(`/api/usuarios/${usuario.id}/rol`, {
+        method: "PATCH",
+        body: JSON.stringify({ rol }),
+      });
+      setUsuarios((prev) => prev.map((u) => (u.id === usuario.id ? data.usuario : u)));
+    } catch (err) {
+      setListError(err.message);
+    } finally {
+      setCambiandoRolId(null);
     }
   }
 
@@ -165,7 +182,22 @@ function EquipoPanel({ currentUser }) {
                     <td>{usuario.name}</td>
                     <td>{usuario.email}</td>
                     <td>
-                      <span className="role-pill">{usuario.rol}</span>
+                      {puedeGestionarVistas && usuario.id !== currentUser.id ? (
+                        <select
+                          className="estado-select"
+                          value={usuario.rol}
+                          disabled={cambiandoRolId === usuario.id}
+                          onChange={(e) => handleCambiarRol(usuario, e.target.value)}
+                        >
+                          {ROLES.map((rol) => (
+                            <option key={rol} value={rol}>
+                              {rol}
+                            </option>
+                          ))}
+                        </select>
+                      ) : (
+                        <span className="role-pill">{usuario.rol}</span>
+                      )}
                     </td>
                     {puedeGestionarVistas && (
                       <td>
