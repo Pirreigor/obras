@@ -70,6 +70,7 @@ model Empresa {
   materialesCatalogo  MaterialCatalogo[]
   pedidos             Pedido[]
   obreros             Obrero[]
+  proveedores         Proveedor[]
   invitaciones        Invitacion[]
 
   createdAt DateTime @default(now())
@@ -408,14 +409,18 @@ model RecepcionMaterial {
 // efectivamente llega (mismo criterio que fechaCierreReal en
 // ActividadProgramada: previsto vs. real).
 model Pedido {
-  id                   Int       @id @default(autoincrement())
+  id                   Int        @id @default(autoincrement())
   empresaId            Int
-  empresa              Empresa   @relation(fields: [empresaId], references: [id], onDelete: Cascade)
+  empresa              Empresa    @relation(fields: [empresaId], references: [id], onDelete: Cascade)
   factura              String?
   fechaEstimadaLlegada DateTime?
   fechaLlegadaReal     DateTime?
+  // Contacto del proveedor de este pedido, para que los ingenieros
+  // puedan hacer seguimiento (llamar a preguntar por la entrega, etc).
+  proveedorId          Int?
+  proveedor            Proveedor? @relation(fields: [proveedorId], references: [id], onDelete: SetNull)
   creadoPorId          Int?
-  creadoPor            Usuario?  @relation("PedidoCreadoPor", fields: [creadoPorId], references: [id], onDelete: SetNull)
+  creadoPor            Usuario?   @relation("PedidoCreadoPor", fields: [creadoPorId], references: [id], onDelete: SetNull)
 
   solicitudes Solicitud[]
 
@@ -423,6 +428,25 @@ model Pedido {
   updatedAt DateTime @updatedAt
 
   @@map("pedidos")
+}
+
+// Catalogo de proveedores/subcontratistas de la empresa (nombre + telefono
+// de contacto), reutilizable al armar un Pedido, igual que el padron de
+// Obreros: se carga una vez y se elige de una lista despues.
+model Proveedor {
+  id        Int     @id @default(autoincrement())
+  empresaId Int
+  empresa   Empresa @relation(fields: [empresaId], references: [id], onDelete: Cascade)
+  nombre    String
+  telefono  String
+  rubro     String?
+
+  pedidos Pedido[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("proveedores")
 }
 
 // Registro de mano de obra (no tienen usuario/login, es solo un padron

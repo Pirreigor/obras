@@ -43,6 +43,7 @@ async function main() {
     { clave: "equipo", nombre: "Equipo" },
     { clave: "obras", nombre: "Obras" },
     { clave: "obreros", nombre: "Obreros" },
+    { clave: "proveedores", nombre: "Proveedores" },
   ];
 
   for (const datosVista of catalogoVistas) {

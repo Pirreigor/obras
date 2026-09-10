@@ -103,9 +103,10 @@ function RegistrarLlegadaModal({ solicitud, onClose, onConfirmar }) {
   );
 }
 
-function AgruparPedidoModal({ cantidad, onClose, onConfirmar }) {
+function AgruparPedidoModal({ cantidad, proveedores, onClose, onConfirmar }) {
   const [factura, setFactura] = useState("");
   const [fechaEstimadaLlegada, setFechaEstimadaLlegada] = useState("");
+  const [proveedorId, setProveedorId] = useState("");
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
@@ -114,7 +115,11 @@ function AgruparPedidoModal({ cantidad, onClose, onConfirmar }) {
     setError("");
     setSubmitting(true);
     try {
-      await onConfirmar({ factura: factura || undefined, fechaEstimadaLlegada: fechaEstimadaLlegada || undefined });
+      await onConfirmar({
+        factura: factura || undefined,
+        fechaEstimadaLlegada: fechaEstimadaLlegada || undefined,
+        proveedorId: proveedorId || undefined,
+      });
     } catch (err) {
       setError(err.message);
     } finally {
@@ -130,6 +135,17 @@ function AgruparPedidoModal({ cantidad, onClose, onConfirmar }) {
       {error && <div className="form-error">{error}</div>}
       <form className="stacked-form" onSubmit={handleSubmit}>
         <div className="field">
+          <label htmlFor="pedidoProveedor">Proveedor (opcional)</label>
+          <select id="pedidoProveedor" value={proveedorId} onChange={(e) => setProveedorId(e.target.value)}>
+            <option value="">Sin asignar</option>
+            {proveedores.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.nombre} · {p.telefono}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div className="field">
           <label htmlFor="pedidoFactura">Factura / numero de compra (opcional)</label>
           <input id="pedidoFactura" value={factura} onChange={(e) => setFactura(e.target.value)} />
         </div>
@@ -144,6 +160,72 @@ function AgruparPedidoModal({ cantidad, onClose, onConfirmar }) {
         </div>
         <button className="btn-primary" type="submit" disabled={submitting}>
           {submitting ? "Aprobando..." : "Aprobar y agrupar"}
+        </button>
+      </form>
+    </Modal>
+  );
+}
+
+function EditarPedidoModal({ pedido, proveedores, onClose, onConfirmar }) {
+  const [factura, setFactura] = useState(pedido.factura || "");
+  const [fechaEstimadaLlegada, setFechaEstimadaLlegada] = useState(
+    pedido.fechaEstimadaLlegada ? pedido.fechaEstimadaLlegada.slice(0, 10) : ""
+  );
+  const [proveedorId, setProveedorId] = useState(pedido.proveedor?.id ? String(pedido.proveedor.id) : "");
+  const [error, setError] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+
+  async function handleSubmit(e) {
+    e.preventDefault();
+    setError("");
+    setSubmitting(true);
+    try {
+      await onConfirmar({
+        factura: factura || null,
+        fechaEstimadaLlegada: fechaEstimadaLlegada || null,
+        proveedorId: proveedorId || null,
+      });
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <Modal title={`Editar pedido #${pedido.id}`} onClose={onClose}>
+      {error && <div className="form-error">{error}</div>}
+      <form className="stacked-form" onSubmit={handleSubmit}>
+        <div className="field">
+          <label htmlFor="editarPedidoProveedor">Proveedor (opcional)</label>
+          <select
+            id="editarPedidoProveedor"
+            value={proveedorId}
+            onChange={(e) => setProveedorId(e.target.value)}
+          >
+            <option value="">Sin asignar</option>
+            {proveedores.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.nombre} · {p.telefono}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div className="field">
+          <label htmlFor="editarPedidoFactura">Factura / numero de compra (opcional)</label>
+          <input id="editarPedidoFactura" value={factura} onChange={(e) => setFactura(e.target.value)} />
+        </div>
+        <div className="field">
+          <label htmlFor="editarPedidoFechaEstimada">Fecha estimada de llegada</label>
+          <input
+            id="editarPedidoFechaEstimada"
+            type="date"
+            value={fechaEstimadaLlegada}
+            onChange={(e) => setFechaEstimadaLlegada(e.target.value)}
+          />
+        </div>
+        <button className="btn-primary" type="submit" disabled={submitting}>
+          {submitting ? "Guardando..." : "Guardar cambios"}
         </button>
       </form>
     </Modal>
@@ -178,11 +260,13 @@ function PedidosPanel({ currentUser }) {
 
   const [obras, setObras] = useState([]);
   const [subObrasMias, setSubObrasMias] = useState([]);
+  const [proveedores, setProveedores] = useState([]);
 
   const [mostrarForm, setMostrarForm] = useState(false);
   const [seleccionadas, setSeleccionadas] = useState([]);
   const [mostrarAgrupar, setMostrarAgrupar] = useState(false);
   const [solicitudParaLlegada, setSolicitudParaLlegada] = useState(null);
+  const [pedidoEnEdicion, setPedidoEnEdicion] = useState(null);
 
   async function loadSolicitudes() {
     setLoading(true);
@@ -223,6 +307,15 @@ function PedidosPanel({ currentUser }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  useEffect(() => {
+    if (puedeAgrupar) {
+      apiFetch("/api/proveedores")
+        .then((data) => setProveedores(data.proveedores))
+        .catch((err) => setError(err.message));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   async function cambiarEstado(solicitud, estado) {
     setCambiandoEstadoId(solicitud.id);
     setError("");
@@ -243,14 +336,23 @@ function PedidosPanel({ currentUser }) {
     setSeleccionadas((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
   }
 
-  async function handleAgrupar({ factura, fechaEstimadaLlegada }) {
+  async function handleAgrupar({ factura, fechaEstimadaLlegada, proveedorId }) {
     await apiFetch("/api/pedidos", {
       method: "POST",
-      body: JSON.stringify({ solicitudIds: seleccionadas, factura, fechaEstimadaLlegada }),
+      body: JSON.stringify({ solicitudIds: seleccionadas, factura, fechaEstimadaLlegada, proveedorId }),
     });
     setSeleccionadas([]);
     setMostrarAgrupar(false);
     loadSolicitudes();
+  }
+
+  async function handleEditarPedido({ factura, fechaEstimadaLlegada, proveedorId }) {
+    const data = await apiFetch(`/api/pedidos/${pedidoEnEdicion.id}`, {
+      method: "PATCH",
+      body: JSON.stringify({ factura, fechaEstimadaLlegada, proveedorId }),
+    });
+    setPedidos((prev) => prev.map((p) => (p.id === data.pedido.id ? data.pedido : p)));
+    setPedidoEnEdicion(null);
   }
 
   async function handleRegistrarLlegada({ cantidad, comentario }) {
@@ -419,6 +521,7 @@ function PedidosPanel({ currentUser }) {
             <thead>
               <tr>
                 <th>Codigo</th>
+                <th>Proveedor</th>
                 <th>Factura</th>
                 <th>Contiene</th>
                 <th>Fecha estimada</th>
@@ -431,13 +534,26 @@ function PedidosPanel({ currentUser }) {
               {pedidos.map((p) => (
                 <tr key={p.id}>
                   <td>#{p.id}</td>
+                  <td>
+                    {p.proveedor ? (
+                      <>
+                        {p.proveedor.nombre}
+                        <div className="muted">{p.proveedor.telefono}</div>
+                      </>
+                    ) : (
+                      "-"
+                    )}
+                  </td>
                   <td>{p.factura || "-"}</td>
                   <td>{p.solicitudes.length} solicitud(es)</td>
                   <td>{p.fechaEstimadaLlegada ? p.fechaEstimadaLlegada.slice(0, 10) : "-"}</td>
                   <td>{p.fechaLlegadaReal ? p.fechaLlegadaReal.slice(0, 10) : "-"}</td>
                   <td>{p.creadoPor?.name || "-"}</td>
                   {puedeAgrupar && (
-                    <td>
+                    <td className="table-actions">
+                      <button className="btn-link" type="button" onClick={() => setPedidoEnEdicion(p)}>
+                        Editar
+                      </button>
                       {!p.fechaLlegadaReal && (
                         <button
                           className="btn-link"
@@ -472,8 +588,18 @@ function PedidosPanel({ currentUser }) {
       {mostrarAgrupar && (
         <AgruparPedidoModal
           cantidad={seleccionadas.length}
+          proveedores={proveedores}
           onClose={() => setMostrarAgrupar(false)}
           onConfirmar={handleAgrupar}
+        />
+      )}
+
+      {pedidoEnEdicion && (
+        <EditarPedidoModal
+          pedido={pedidoEnEdicion}
+          proveedores={proveedores}
+          onClose={() => setPedidoEnEdicion(null)}
+          onConfirmar={handleEditarPedido}
         />
       )}
 

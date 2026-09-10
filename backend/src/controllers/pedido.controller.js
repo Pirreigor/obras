@@ -4,6 +4,7 @@ const { SOLICITUD_INCLUDE, conCantidadRecibida } = require("./solicitud.controll
 
 const PEDIDO_INCLUDE = {
   creadoPor: { select: { id: true, name: true } },
+  proveedor: true,
   solicitudes: { include: SOLICITUD_INCLUDE },
 };
 
@@ -59,7 +60,7 @@ async function list(req, res) {
 }
 
 async function create(req, res) {
-  const { solicitudIds, factura, fechaEstimadaLlegada } = req.body;
+  const { solicitudIds, factura, fechaEstimadaLlegada, proveedorId } = req.body;
 
   if (!Array.isArray(solicitudIds) || solicitudIds.length === 0) {
     return res.status(400).json({ message: "solicitudIds no puede estar vacio" });
@@ -82,12 +83,22 @@ async function create(req, res) {
     return res.status(403).json({ message: "No tenes permiso para aprobar alguna de estas solicitudes" });
   }
 
+  if (proveedorId != null) {
+    const proveedor = await prisma.proveedor.findFirst({
+      where: { id: Number(proveedorId), empresaId: req.user.empresaId },
+    });
+    if (!proveedor) {
+      return res.status(404).json({ message: "Proveedor no encontrado" });
+    }
+  }
+
   const pedido = await prisma.$transaction(async (tx) => {
     const nuevo = await tx.pedido.create({
       data: {
         empresaId: req.user.empresaId,
         factura: factura || null,
         fechaEstimadaLlegada: fechaEstimadaLlegada ? new Date(fechaEstimadaLlegada) : null,
+        proveedorId: proveedorId != null ? Number(proveedorId) : null,
         creadoPorId: req.user.id,
       },
     });
@@ -101,6 +112,47 @@ async function create(req, res) {
   });
 
   return res.status(201).json({ pedido: conSolicitudesCalculadas(pedido) });
+}
+
+// Editar el contacto/proveedor (y factura/fecha estimada) de un pedido
+// ya creado, para cuando esos datos se consiguen despues de agrupar
+// las solicitudes.
+async function update(req, res) {
+  const id = Number(req.params.id);
+  const { factura, fechaEstimadaLlegada, proveedorId } = req.body;
+
+  const pedido = await prisma.pedido.findFirst({
+    where: { id, empresaId: req.user.empresaId },
+    include: { solicitudes: true },
+  });
+  if (!pedido) {
+    return res.status(404).json({ message: "Pedido no encontrado" });
+  }
+
+  if (!(await puedeAprobarTodas(req.user, pedido.solicitudes))) {
+    return res.status(403).json({ message: "No tenes permiso para editar este pedido" });
+  }
+
+  if (proveedorId) {
+    const proveedor = await prisma.proveedor.findFirst({
+      where: { id: Number(proveedorId), empresaId: req.user.empresaId },
+    });
+    if (!proveedor) {
+      return res.status(404).json({ message: "Proveedor no encontrado" });
+    }
+  }
+
+  const actualizado = await prisma.pedido.update({
+    where: { id },
+    data: {
+      factura: factura !== undefined ? factura || null : undefined,
+      fechaEstimadaLlegada: fechaEstimadaLlegada !== undefined ? (fechaEstimadaLlegada ? new Date(fechaEstimadaLlegada) : null) : undefined,
+      proveedorId: proveedorId !== undefined ? (proveedorId ? Number(proveedorId) : null) : undefined,
+    },
+    include: PEDIDO_INCLUDE,
+  });
+
+  return res.json({ pedido: conSolicitudesCalculadas(actualizado) });
 }
 
 async function marcarRecibido(req, res) {
@@ -133,5 +185,6 @@ async function marcarRecibido(req, res) {
 module.exports = {
   list,
   create,
+  update,
   marcarRecibido,
 };
