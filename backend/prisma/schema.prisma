@@ -192,6 +192,10 @@ model Obra {
   cliente          String?
   direccion        String?
   estado           EstadoObra @default(PLANIFICACION)
+  // Distinto del "estado" (que es el flujo de la obra): desactivar
+  // saca la obra de todos los listados operativos (calendario, pedidos,
+  // etc.) sin borrar nada, como alternativa a eliminarla.
+  activa           Boolean    @default(true)
   presupuesto      Float?
   fechaInicio      DateTime?
   fechaFinEstimada DateTime?
@@ -213,6 +217,9 @@ model SubObra {
   nombre               String
   descripcion          String?
   estado               EstadoSubObra @default(ACTIVA)
+  // Igual criterio que Obra.activa: desactivar la saca de los listados
+  // operativos de todos sin borrar historial.
+  activa               Boolean       @default(true)
   responsableCalidadId Int?
   responsableCalidad   Usuario?      @relation("SubObraResponsableCalidad", fields: [responsableCalidadId], references: [id], onDelete: SetNull)
   // Numero de partida presupuestaria y su archivo de respaldo (PDF/Excel/

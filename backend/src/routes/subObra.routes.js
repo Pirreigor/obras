@@ -23,8 +23,10 @@ router.use(requireAuth);
 router.get("/mias", listMias);
 
 router.get("/:id", getById);
-router.patch("/:id", requireRole("ADMINISTRADOR"), update);
-router.delete("/:id", requireRole("ADMINISTRADOR"), remove);
+// La autorizacion (Administrador/Supervisor o el residente lider de la
+// obra duena de esta sub-obra) se valida dentro del controller.
+router.patch("/:id", update);
+router.delete("/:id", remove);
 
 router.get("/:id/actividades", listActividades);
 // La autorizacion real (Administrador/Supervisor, o el residente/calidad

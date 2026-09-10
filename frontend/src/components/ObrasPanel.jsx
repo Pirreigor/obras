@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { apiFetch } from "../api";
 import Modal from "./Modal";
+import ConfirmModal from "./ConfirmModal";
 import ActividadesModal from "./ActividadesModal";
 import ProgressBar from "./ProgressBar";
 
@@ -30,9 +31,54 @@ const SUB_OBRA_FORM_INICIAL = {
   numeroPartida: "",
 };
 
+const CONFIRM_TEXTOS = {
+  "obra-activa": {
+    title: "Desactivar/reactivar obra",
+    message: (a) =>
+      a.obra.activa
+        ? `Esto va a sacar "${a.obra.nombre}" de los listados operativos (calendario, pedidos, etc.) para todos los usuarios. No se borra nada y se puede reactivar despues.`
+        : `"${a.obra.nombre}" vuelve a aparecer en los listados operativos para todos los usuarios.`,
+    confirmLabel: "Confirmar",
+    danger: false,
+  },
+  "obra-eliminar": {
+    title: "Eliminar obra",
+    message: (a) =>
+      `Esta accion es permanente y no se puede deshacer. Si "${a.obra.nombre}" ya tiene avances registrados, la eliminacion va a ser rechazada (desactivala en ese caso).`,
+    confirmLabel: "Eliminar definitivamente",
+    danger: true,
+  },
+  "subobra-activa": {
+    title: "Desactivar/reactivar sub-obra",
+    message: (a) =>
+      a.subObra.activa
+        ? `Esto va a sacar "${a.subObra.nombre}" de los listados operativos para todos los usuarios. No se borra nada y se puede reactivar despues.`
+        : `"${a.subObra.nombre}" vuelve a aparecer en los listados operativos para todos los usuarios.`,
+    confirmLabel: "Confirmar",
+    danger: false,
+  },
+  "subobra-eliminar": {
+    title: "Eliminar sub-obra",
+    message: (a) =>
+      `Esta accion es permanente y no se puede deshacer. Si "${a.subObra.nombre}" ya tiene avances registrados, la eliminacion va a ser rechazada (desactivala en ese caso).`,
+    confirmLabel: "Eliminar definitivamente",
+    danger: true,
+  },
+};
+
 function ObrasPanel({ currentUser }) {
   const esAdmin = currentUser?.rol === "ADMINISTRADOR";
-  const puedeCrearActividades = currentUser?.rol === "ADMINISTRADOR" || currentUser?.rol === "SUPERVISOR";
+  const esSupervisor = currentUser?.rol === "SUPERVISOR";
+  const puedeCrearActividades = esAdmin || esSupervisor;
+  // Con la vista "obras" (o Admin/Supervisor) se ve el listado completo
+  // de la empresa; sin ella, solo las obras que el usuario lidera
+  // (Obra.residenteId), para poder gestionar sus propias sub-obras.
+  const vistaCompleta = esAdmin || esSupervisor || Boolean(currentUser?.vistas?.includes("obras"));
+
+  function puedeGestionarObra(obra) {
+    return esAdmin || esSupervisor || obra?.residenteId === currentUser?.id;
+  }
+
   const [obras, setObras] = useState([]);
   const [zonas, setZonas] = useState([]);
   const [localidadesPorZona, setLocalidadesPorZona] = useState({});
@@ -60,11 +106,15 @@ function ObrasPanel({ currentUser }) {
   const [mostrarModalSubObra, setMostrarModalSubObra] = useState(false);
   const [subObraParaActividades, setSubObraParaActividades] = useState(null);
 
+  const [confirmAction, setConfirmAction] = useState(null);
+  const [confirmError, setConfirmError] = useState("");
+  const [confirmLoading, setConfirmLoading] = useState(false);
+
   async function loadObras() {
     setLoading(true);
     setListError("");
     try {
-      const data = await apiFetch("/api/obras");
+      const data = await apiFetch(vistaCompleta ? "/api/obras" : "/api/obras/mias");
       setObras(data.obras);
     } catch (err) {
       setListError(err.message);
@@ -84,7 +134,7 @@ function ObrasPanel({ currentUser }) {
 
   async function loadUsuarios() {
     try {
-      const data = await apiFetch("/api/usuarios");
+      const data = await apiFetch("/api/obras/usuarios-disponibles");
       setUsuarios(data.usuarios);
     } catch (err) {
       setListError(err.message);
@@ -93,8 +143,11 @@ function ObrasPanel({ currentUser }) {
 
   useEffect(() => {
     loadObras();
-    loadZonas();
     loadUsuarios();
+    if (esAdmin) {
+      loadZonas();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   function handleOpenModalObra() {
@@ -273,6 +326,46 @@ function ObrasPanel({ currentUser }) {
     }
   }
 
+  function pedirConfirmacion(action) {
+    setConfirmError("");
+    setConfirmAction(action);
+  }
+
+  async function handleConfirmar() {
+    if (!confirmAction) return;
+    setConfirmError("");
+    setConfirmLoading(true);
+    try {
+      if (confirmAction.tipo === "obra-activa") {
+        const data = await apiFetch(`/api/obras/${confirmAction.obra.id}`, {
+          method: "PATCH",
+          body: JSON.stringify({ activa: !confirmAction.obra.activa }),
+        });
+        setObras((prev) => prev.map((o) => (o.id === data.obra.id ? { ...o, ...data.obra } : o)));
+      } else if (confirmAction.tipo === "obra-eliminar") {
+        await apiFetch(`/api/obras/${confirmAction.obra.id}`, { method: "DELETE" });
+        setObras((prev) => prev.filter((o) => o.id !== confirmAction.obra.id));
+        if (obraSeleccionadaId === confirmAction.obra.id) {
+          setMostrarModalSubObras(false);
+        }
+      } else if (confirmAction.tipo === "subobra-activa") {
+        const data = await apiFetch(`/api/sub-obras/${confirmAction.subObra.id}`, {
+          method: "PATCH",
+          body: JSON.stringify({ activa: !confirmAction.subObra.activa }),
+        });
+        setSubObras((prev) => prev.map((s) => (s.id === data.subObra.id ? { ...s, ...data.subObra } : s)));
+      } else if (confirmAction.tipo === "subobra-eliminar") {
+        await apiFetch(`/api/sub-obras/${confirmAction.subObra.id}`, { method: "DELETE" });
+        setSubObras((prev) => prev.filter((s) => s.id !== confirmAction.subObra.id));
+      }
+      setConfirmAction(null);
+    } catch (err) {
+      setConfirmError(err.message);
+    } finally {
+      setConfirmLoading(false);
+    }
+  }
+
   const localidadesDisponibles = form.zonaId && form.zonaId !== NUEVA ? localidadesPorZona[form.zonaId] || [] : [];
   const necesitaLocalidadNueva = form.zonaId === NUEVA || form.localidadId === NUEVA;
   // No se limita por rol: la misma persona puede ser residente lider de
@@ -288,11 +381,16 @@ function ObrasPanel({ currentUser }) {
       <section className="panel-card">
         <div className="panel-card-header">
           <h2>Obras</h2>
-          <button className="btn-small" type="button" onClick={handleOpenModalObra}>
-            + Nueva obra
-          </button>
+          {esAdmin && (
+            <button className="btn-small" type="button" onClick={handleOpenModalObra}>
+              + Nueva obra
+            </button>
+          )}
         </div>
         {listError && <div className="form-error">{listError}</div>}
+        {!vistaCompleta && (
+          <p className="muted vista-block">Mostrando solo las obras que lideras.</p>
+        )}
         {loading ? (
           <p className="muted">Cargando...</p>
         ) : obras.length === 0 ? (
@@ -309,6 +407,7 @@ function ObrasPanel({ currentUser }) {
                   <th>Residente lider</th>
                   <th>Presupuesto</th>
                   <th>Avance</th>
+                  <th>Activa</th>
                   {esAdmin && <th></th>}
                 </tr>
               </thead>
@@ -332,17 +431,29 @@ function ObrasPanel({ currentUser }) {
                     <td>
                       <ProgressBar value={obra.porcentaje} />
                     </td>
+                    <td>
+                      <span className={obra.activa ? "role-pill" : "role-pill role-pill-muted"}>
+                        {obra.activa ? "Si" : "No"}
+                      </span>
+                    </td>
                     {esAdmin && (
-                      <td>
+                      <td className="table-actions" onClick={(e) => e.stopPropagation()}>
+                        <button className="btn-link" type="button" onClick={() => handleOpenEditarObra(obra)}>
+                          Editar
+                        </button>
                         <button
                           className="btn-link"
                           type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleOpenEditarObra(obra);
-                          }}
+                          onClick={() => pedirConfirmacion({ tipo: "obra-activa", obra })}
                         >
-                          Editar
+                          {obra.activa ? "Desactivar" : "Reactivar"}
+                        </button>
+                        <button
+                          className="btn-link btn-link-danger"
+                          type="button"
+                          onClick={() => pedirConfirmacion({ tipo: "obra-eliminar", obra })}
+                        >
+                          Eliminar
                         </button>
                       </td>
                     )}
@@ -359,9 +470,11 @@ function ObrasPanel({ currentUser }) {
         <Modal title={`Sub-obras de ${obraSeleccionada.nombre}`} onClose={() => setMostrarModalSubObras(false)}>
           <div className="panel-card-header">
             <span className="muted">{subObras.length} sub-obra(s)</span>
-            <button className="btn-small" type="button" onClick={handleOpenModalSubObra}>
-              + Nueva sub-obra
-            </button>
+            {puedeGestionarObra(obraSeleccionada) && (
+              <button className="btn-small" type="button" onClick={handleOpenModalSubObra}>
+                + Nueva sub-obra
+              </button>
+            )}
           </div>
           {subObraError && <div className="form-error">{subObraError}</div>}
           {loadingSubObras ? (
@@ -381,6 +494,8 @@ function ObrasPanel({ currentUser }) {
                       <th>Equipo</th>
                       <th>Partida</th>
                       <th>Avance</th>
+                      <th>Activa</th>
+                      {puedeGestionarObra(obraSeleccionada) && <th></th>}
                     </tr>
                   </thead>
                   <tbody>
@@ -413,6 +528,29 @@ function ObrasPanel({ currentUser }) {
                         <td>
                           <ProgressBar value={subObra.porcentaje} />
                         </td>
+                        <td>
+                          <span className={subObra.activa ? "role-pill" : "role-pill role-pill-muted"}>
+                            {subObra.activa ? "Si" : "No"}
+                          </span>
+                        </td>
+                        {puedeGestionarObra(obraSeleccionada) && (
+                          <td className="table-actions" onClick={(e) => e.stopPropagation()}>
+                            <button
+                              className="btn-link"
+                              type="button"
+                              onClick={() => pedirConfirmacion({ tipo: "subobra-activa", subObra })}
+                            >
+                              {subObra.activa ? "Desactivar" : "Reactivar"}
+                            </button>
+                            <button
+                              className="btn-link btn-link-danger"
+                              type="button"
+                              onClick={() => pedirConfirmacion({ tipo: "subobra-eliminar", subObra })}
+                            >
+                              Eliminar
+                            </button>
+                          </td>
+                        )}
                       </tr>
                     ))}
                   </tbody>
@@ -701,6 +839,23 @@ function ObrasPanel({ currentUser }) {
             </button>
           </form>
         </Modal>
+      )}
+
+      {confirmAction && (
+        <ConfirmModal
+          title={CONFIRM_TEXTOS[confirmAction.tipo].title}
+          message={
+            <>
+              {CONFIRM_TEXTOS[confirmAction.tipo].message(confirmAction)}
+              {confirmError && <div className="form-error" style={{ marginTop: 12 }}>{confirmError}</div>}
+            </>
+          }
+          confirmLabel={confirmLoading ? "Procesando..." : CONFIRM_TEXTOS[confirmAction.tipo].confirmLabel}
+          danger={CONFIRM_TEXTOS[confirmAction.tipo].danger}
+          loading={confirmLoading}
+          onConfirm={handleConfirmar}
+          onClose={() => setConfirmAction(null)}
+        />
       )}
     </>
   );

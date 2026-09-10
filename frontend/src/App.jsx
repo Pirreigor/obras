@@ -183,9 +183,10 @@ function AppShell({ user, onLogout }) {
     // Pedidos no depende de una Vista asignable: todos los roles de la
     // empresa lo ven, el backend filtra que solicitudes/pedidos ve cada uno.
     list.push({ key: "pedidos", label: "Pedidos", render: () => <PedidosPanel currentUser={user} /> });
-    if (user.vistas?.includes("obras")) {
-      list.push({ key: "obras", label: "Obras", render: () => <ObrasPanel currentUser={user} /> });
-    }
+    // Tampoco depende solo de la vista "obras": un residente lider sin esa
+    // vista igual necesita entrar para gestionar sus propias sub-obras
+    // (el panel resuelve el alcance real llamando a /api/obras/mias).
+    list.push({ key: "obras", label: "Obras", render: () => <ObrasPanel currentUser={user} /> });
     if (user.vistas?.includes("equipo")) {
       list.push({ key: "equipo", label: "Equipo", render: () => <EquipoPanel currentUser={user} /> });
     }

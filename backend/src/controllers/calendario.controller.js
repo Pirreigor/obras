@@ -5,7 +5,8 @@ async function listMisActividades(req, res) {
   const actividades = await prisma.actividadProgramada.findMany({
     where: {
       subObra: {
-        obra: { localidad: { zona: { empresaId: req.user.empresaId } } },
+        activa: true,
+        obra: { activa: true, localidad: { zona: { empresaId: req.user.empresaId } } },
         OR: [{ responsableCalidadId: req.user.id }, { residentes: { some: { usuarioId: req.user.id } } }],
       },
     },

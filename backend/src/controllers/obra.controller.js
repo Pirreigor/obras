@@ -1,5 +1,6 @@
 const prisma = require("../utils/prisma");
 const { porcentajeSubObra, porcentajeObra } = require("../utils/progreso");
+const { puedeAprobarObra } = require("./subObra.controller");
 
 const SUB_OBRA_INCLUDE = {
   responsableCalidad: { select: { id: true, name: true } },
@@ -33,6 +34,54 @@ function scopedWhere(req, extra = {}) {
   };
 }
 
+// Ver el detalle de una obra puntual (o sus sub-obras) no depende solo
+// del rol: Administrador/Supervisor siempre, quien tenga la vista
+// "obras" asignada tambien, y el residente lider de esa obra puntual
+// aunque no tenga la vista (para poder gestionar sus propias sub-obras).
+async function puedeVerObra(user, obra) {
+  if (user.rol === "ADMINISTRADOR" || user.rol === "SUPERVISOR") {
+    return true;
+  }
+  if (obra?.residenteId === user.id) {
+    return true;
+  }
+  const asignada = await prisma.usuarioVista.findFirst({
+    where: { usuarioId: user.id, vista: { clave: "obras" } },
+  });
+  return Boolean(asignada);
+}
+
+// Las obras que este usuario lidera (Obra.residenteId), sin necesitar
+// la vista "obras": le alcanza para crear/gestionar sus sub-obras.
+async function listMias(req, res) {
+  const obras = await prisma.obra.findMany({
+    where: scopedWhere(req, { residenteId: req.user.id, activa: true }),
+    include: {
+      localidad: { include: { zona: true } },
+      residente: { select: { id: true, name: true } },
+      subObras: { select: ACTIVIDADES_PROGRESO_INCLUDE },
+    },
+    orderBy: { createdAt: "desc" },
+  });
+
+  return res.json({
+    obras: obras.map(({ subObras, ...obra }) => ({ ...obra, porcentaje: porcentajeObra({ subObras }) })),
+  });
+}
+
+// Listado liviano (solo id/nombre/rol) para los selectores de residente
+// lider, responsable de calidad y equipo asignado. No exige la vista
+// "equipo": un residente lider sin esa vista igual necesita elegir a
+// quien asignar en sus propias sub-obras.
+async function listUsuariosDisponibles(req, res) {
+  const usuarios = await prisma.usuario.findMany({
+    where: { empresaId: req.user.empresaId },
+    select: { id: true, name: true, rol: true },
+    orderBy: { name: "asc" },
+  });
+  return res.json({ usuarios });
+}
+
 async function list(req, res) {
   const obras = await prisma.obra.findMany({
     where: scopedWhere(req),
@@ -64,7 +113,7 @@ async function getById(req, res) {
     },
   });
 
-  if (!obra) {
+  if (!obra || !(await puedeVerObra(req.user, obra))) {
     return res.status(404).json({ message: "Obra no encontrada" });
   }
 
@@ -114,8 +163,19 @@ async function create(req, res) {
 
 async function update(req, res) {
   const id = Number(req.params.id);
-  const { nombre, descripcion, cliente, direccion, estado, presupuesto, fechaInicio, fechaFinEstimada, localidadId, residenteId } =
-    req.body;
+  const {
+    nombre,
+    descripcion,
+    cliente,
+    direccion,
+    estado,
+    activa,
+    presupuesto,
+    fechaInicio,
+    fechaFinEstimada,
+    localidadId,
+    residenteId,
+  } = req.body;
 
   const existing = await prisma.obra.findFirst({ where: scopedWhere(req, { id }) });
   if (!existing) {
@@ -148,6 +208,7 @@ async function update(req, res) {
       cliente,
       direccion,
       estado,
+      activa: typeof activa === "boolean" ? activa : undefined,
       presupuesto: presupuesto != null ? Number(presupuesto) : undefined,
       fechaInicio: fechaInicio ? new Date(fechaInicio) : undefined,
       fechaFinEstimada: fechaFinEstimada ? new Date(fechaFinEstimada) : undefined,
@@ -169,6 +230,13 @@ async function remove(req, res) {
     return res.status(404).json({ message: "Obra no encontrada" });
   }
 
+  const tieneAvances = await prisma.avance.count({ where: { subObra: { obraId: id } } });
+  if (tieneAvances > 0) {
+    return res.status(400).json({
+      message: "No se puede eliminar: esta obra ya tiene avances registrados. Desactivala en vez de eliminarla.",
+    });
+  }
+
   await prisma.obra.delete({ where: { id } });
 
   return res.status(204).send();
@@ -178,7 +246,7 @@ async function listSubObras(req, res) {
   const obraId = Number(req.params.id);
 
   const obra = await prisma.obra.findFirst({ where: scopedWhere(req, { id: obraId }) });
-  if (!obra) {
+  if (!obra || !(await puedeVerObra(req.user, obra))) {
     return res.status(404).json({ message: "Obra no encontrada" });
   }
 
@@ -202,6 +270,12 @@ async function createSubObra(req, res) {
   const obra = await prisma.obra.findFirst({ where: scopedWhere(req, { id: obraId }) });
   if (!obra) {
     return res.status(404).json({ message: "Obra no encontrada" });
+  }
+
+  // Ademas de Administrador/Supervisor, el residente lider de esta obra
+  // puntual tambien puede crear sub-obras dentro de ella.
+  if (!puedeAprobarObra(req.user, obra)) {
+    return res.status(403).json({ message: "No tenes permiso para crear sub-obras en esta obra" });
   }
 
   if (responsableCalidadId != null) {
@@ -253,6 +327,8 @@ async function createSubObra(req, res) {
 
 module.exports = {
   list,
+  listMias,
+  listUsuariosDisponibles,
   getById,
   create,
   update,

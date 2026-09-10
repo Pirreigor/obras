@@ -67,7 +67,8 @@ function puedeAprobarObra(user, obra) {
 async function listMias(req, res) {
   const subObras = await prisma.subObra.findMany({
     where: {
-      obra: { localidad: { zona: { empresaId: req.user.empresaId } } },
+      activa: true,
+      obra: { activa: true, localidad: { zona: { empresaId: req.user.empresaId } } },
       OR: [{ responsableCalidadId: req.user.id }, { residentes: { some: { usuarioId: req.user.id } } }],
     },
     include: {
@@ -108,11 +109,20 @@ async function getById(req, res) {
 
 async function update(req, res) {
   const id = Number(req.params.id);
-  const { nombre, descripcion, estado, responsableCalidadId } = req.body;
+  const { nombre, descripcion, estado, activa, responsableCalidadId } = req.body;
 
-  const existing = await prisma.subObra.findFirst({ where: scopedWhere(req, { id }) });
+  const existing = await prisma.subObra.findFirst({
+    where: scopedWhere(req, { id }),
+    include: { obra: true },
+  });
   if (!existing) {
     return res.status(404).json({ message: "Sub-obra no encontrada" });
+  }
+
+  // Ademas de Administrador/Supervisor, el residente lider de la obra
+  // duena de esta sub-obra tambien puede editarla/desactivarla.
+  if (!puedeAprobarObra(req.user, existing.obra)) {
+    return res.status(403).json({ message: "No tenes permiso para editar esta sub-obra" });
   }
 
   if (responsableCalidadId != null) {
@@ -130,6 +140,7 @@ async function update(req, res) {
       nombre,
       descripcion,
       estado,
+      activa: typeof activa === "boolean" ? activa : undefined,
       responsableCalidadId: responsableCalidadId != null ? Number(responsableCalidadId) : undefined,
     },
   });
@@ -140,9 +151,23 @@ async function update(req, res) {
 async function remove(req, res) {
   const id = Number(req.params.id);
 
-  const existing = await prisma.subObra.findFirst({ where: scopedWhere(req, { id }) });
+  const existing = await prisma.subObra.findFirst({
+    where: scopedWhere(req, { id }),
+    include: { obra: true },
+  });
   if (!existing) {
     return res.status(404).json({ message: "Sub-obra no encontrada" });
+  }
+
+  if (!puedeAprobarObra(req.user, existing.obra)) {
+    return res.status(403).json({ message: "No tenes permiso para eliminar esta sub-obra" });
+  }
+
+  const tieneAvances = await prisma.avance.count({ where: { subObraId: id } });
+  if (tieneAvances > 0) {
+    return res.status(400).json({
+      message: "No se puede eliminar: esta sub-obra ya tiene avances registrados. Desactivala en vez de eliminarla.",
+    });
   }
 
   await prisma.subObra.delete({ where: { id } });
