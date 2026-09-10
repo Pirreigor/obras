@@ -42,6 +42,7 @@ async function main() {
   const catalogoVistas = [
     { clave: "equipo", nombre: "Equipo" },
     { clave: "obras", nombre: "Obras" },
+    { clave: "obreros", nombre: "Obreros" },
   ];
 
   for (const datosVista of catalogoVistas) {

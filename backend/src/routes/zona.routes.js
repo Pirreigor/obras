@@ -8,11 +8,14 @@ const {
 } = require("../controllers/zona.controller");
 const { requireAuth } = require("../middleware/auth.middleware");
 const { requireRole } = require("../middleware/role.middleware");
-const { requireVista } = require("../middleware/vista.middleware");
 
 const router = Router();
 
-router.use(requireAuth, requireVista("obras"));
+// La lectura de zonas/localidades es solo referencia geografica (sin
+// datos sensibles) y la usan otras pantallas ademas de Obras (ej.
+// Obreros), asi que queda abierta a cualquier usuario autenticado.
+// Crear zonas/localidades nuevas sigue acotado a Administrador.
+router.use(requireAuth);
 
 router.get("/", list);
 router.post("/", requireRole("ADMINISTRADOR"), create);

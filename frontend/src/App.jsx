@@ -6,6 +6,7 @@ import EmpresasPanel from "./components/EmpresasPanel";
 import EquipoPanel from "./components/EquipoPanel";
 import InicioPanel from "./components/InicioPanel";
 import ObrasPanel from "./components/ObrasPanel";
+import ObrerosPanel from "./components/ObrerosPanel";
 import PedidosPanel from "./components/PedidosPanel";
 
 function ConstructionArt() {
@@ -187,6 +188,9 @@ function AppShell({ user, onLogout }) {
     }
     if (user.vistas?.includes("equipo")) {
       list.push({ key: "equipo", label: "Equipo", render: () => <EquipoPanel currentUser={user} /> });
+    }
+    if (user.vistas?.includes("obreros")) {
+      list.push({ key: "obreros", label: "Obreros", render: () => <ObrerosPanel currentUser={user} /> });
     }
     return list;
   }, [user]);

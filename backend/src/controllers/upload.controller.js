@@ -3,6 +3,7 @@ const { evidenciaDisponible, subirEvidencia } = require("../utils/evidencia");
 const CARPETAS_VALIDAS = {
   evidencias: "obras/evidencias",
   partidas: "obras/partidas",
+  obreros: "obras/obreros",
 };
 
 async function subirArchivo(req, res) {
