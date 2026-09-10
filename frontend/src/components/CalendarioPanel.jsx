@@ -92,6 +92,9 @@ function AvanceForm({ fecha, actividades, subObras, onSaved, onError }) {
   const [porcentaje, setPorcentaje] = useState("");
   const [cantidad, setCantidad] = useState("");
   const [descripcion, setDescripcion] = useState("");
+  const [archivo, setArchivo] = useState(null);
+  const [avisoEvidencia, setAvisoEvidencia] = useState("");
+  const [archivoInputKey, setArchivoInputKey] = useState(0);
   const [submitting, setSubmitting] = useState(false);
 
   const actividadSeleccionada = actividades.find((a) => String(a.id) === String(actividadProgramadaId));
@@ -109,6 +112,7 @@ function AvanceForm({ fecha, actividades, subObras, onSaved, onError }) {
   async function handleSubmit(e) {
     e.preventDefault();
     setSubmitting(true);
+    setAvisoEvidencia("");
     try {
       let subObraId;
       let actividadId = actividadProgramadaId;
@@ -132,6 +136,18 @@ function AvanceForm({ fecha, actividades, subObras, onSaved, onError }) {
         throw new Error("Elegi una actividad");
       }
 
+      let imagenUrl;
+      if (archivo) {
+        try {
+          const formData = new FormData();
+          formData.append("evidencia", archivo);
+          const subida = await apiFetch("/api/uploads", { method: "POST", body: formData });
+          imagenUrl = subida.url;
+        } catch (err) {
+          setAvisoEvidencia("No se pudo subir la foto, se guarda igual el avance sin ella.");
+        }
+      }
+
       const data = await apiFetch(`/api/sub-obras/${subObraId}/avances`, {
         method: "POST",
         body: JSON.stringify({
@@ -140,11 +156,14 @@ function AvanceForm({ fecha, actividades, subObras, onSaved, onError }) {
           porcentaje: usaMetrado ? undefined : porcentaje || 0,
           cantidad: usaMetrado ? cantidad : undefined,
           descripcion: descripcion || undefined,
+          imagenes: imagenUrl ? [imagenUrl] : undefined,
         }),
       });
       setPorcentaje("");
       setCantidad("");
       setDescripcion("");
+      setArchivo(null);
+      setArchivoInputKey((k) => k + 1);
       setActividadProgramadaId("");
       setNuevaSubObraId("");
       setNuevaActividadNombre("");
@@ -237,7 +256,17 @@ function AvanceForm({ fecha, actividades, subObras, onSaved, onError }) {
         <label htmlFor="avanceDescripcion">Comentario</label>
         <input id="avanceDescripcion" value={descripcion} onChange={(e) => setDescripcion(e.target.value)} />
       </div>
-      <p className="muted">Las fotos todavia no se pueden adjuntar; se agregan en un paso siguiente.</p>
+      <div className="field">
+        <label htmlFor="avanceEvidencia">Foto (opcional)</label>
+        <input
+          key={archivoInputKey}
+          id="avanceEvidencia"
+          type="file"
+          accept="image/*"
+          onChange={(e) => setArchivo(e.target.files?.[0] || null)}
+        />
+      </div>
+      {avisoEvidencia && <div className="form-error">{avisoEvidencia}</div>}
       <button className="btn-primary" type="submit" disabled={submitting}>
         {submitting ? "Guardando..." : "Guardar avance"}
       </button>
@@ -564,12 +593,19 @@ function DetalleDia({ fecha, programadas, avances, subObras, actividades, onSave
           <h3>Ya registrado ese dia</h3>
           <div className="vista-checklist">
             {avances.map((a) => (
-              <div key={a.id} className="muted">
-                {a.actividad.subObra.nombre} &middot; {a.actividad.actividadCatalogo?.nombre} &mdash;{" "}
-                {a.cantidad != null
-                  ? `${a.cantidad} ${a.actividad.actividadCatalogo?.unidad || ""} (${a.porcentaje}%)`
-                  : `${a.porcentaje}%`}
-                {a.descripcion ? `: ${a.descripcion}` : ""}
+              <div key={a.id} className="muted avance-registrado">
+                <span>
+                  {a.actividad.subObra.nombre} &middot; {a.actividad.actividadCatalogo?.nombre} &mdash;{" "}
+                  {a.cantidad != null
+                    ? `${a.cantidad} ${a.actividad.actividadCatalogo?.unidad || ""} (${a.porcentaje}%)`
+                    : `${a.porcentaje}%`}
+                  {a.descripcion ? `: ${a.descripcion}` : ""}
+                </span>
+                {a.imagenes?.length > 0 && (
+                  <a href={a.imagenes[0]} target="_blank" rel="noreferrer">
+                    <img className="avance-foto-mini" src={a.imagenes[0]} alt="Evidencia del avance" />
+                  </a>
+                )}
               </div>
             ))}
           </div>

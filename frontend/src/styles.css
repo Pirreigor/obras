@@ -1015,6 +1015,21 @@ body {
   gap: 10px;
 }
 
+.avance-registrado {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.avance-foto-mini {
+  width: 32px;
+  height: 32px;
+  object-fit: cover;
+  border-radius: 4px;
+  border: 1px solid var(--border);
+  flex: none;
+}
+
 .vista-check {
   display: flex;
   align-items: center;
