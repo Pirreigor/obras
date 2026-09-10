@@ -132,11 +132,14 @@ function AgruparPedidoModal({ cantidad, onClose, onConfirmar }) {
 
 function PedidosPanel({ currentUser }) {
   const esGestor = currentUser?.rol === "ADMINISTRADOR" || currentUser?.rol === "SUPERVISOR";
-  // Ademas de Administrador/Supervisor, un RESIDENTE puede ser el
-  // "residente lider" de alguna obra (Obra.residenteId) y por lo tanto
-  // tambien puede aprobar/agrupar/rechazar; el backend valida el detalle
-  // por obra, aca solo se decide si se muestran los controles.
-  const puedeAgrupar = esGestor || currentUser?.rol === "RESIDENTE";
+  // Ademas de Administrador/Supervisor, cualquier persona puede ser el
+  // "residente lider" de alguna obra (Obra.residenteId) sin importar su
+  // rol de base (la misma persona puede ser residente en una obra y
+  // calidad/produccion en otra) y por lo tanto tambien puede aprobar/
+  // agrupar/rechazar; el backend valida el detalle por obra, aca solo
+  // se decide si se muestran los controles.
+  const puedeAgrupar =
+    esGestor || currentUser?.rol === "RESIDENTE" || currentUser?.rol === "CALIDAD_PRODUCCION";
 
   // El Almacenero, un gestor, o el mismo que hizo la solicitud pueden
   // registrar que llego una entrega (el backend valida el detalle).

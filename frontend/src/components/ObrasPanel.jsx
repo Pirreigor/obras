@@ -16,7 +16,11 @@ const FORM_INICIAL = {
   zonaNombreNueva: "",
   localidadId: "",
   localidadNombreNueva: "",
+  residenteId: "",
 };
+
+const EDITAR_OBRA_FORM_INICIAL = { estado: "", residenteId: "" };
+const ESTADOS_OBRA = ["PLANIFICACION", "EN_PROGRESO", "PAUSADO", "FINALIZADO", "CANCELADO"];
 
 const SUB_OBRA_FORM_INICIAL = {
   nombre: "",
@@ -27,6 +31,7 @@ const SUB_OBRA_FORM_INICIAL = {
 };
 
 function ObrasPanel({ currentUser }) {
+  const esAdmin = currentUser?.rol === "ADMINISTRADOR";
   const puedeCrearActividades = currentUser?.rol === "ADMINISTRADOR" || currentUser?.rol === "SUPERVISOR";
   const [obras, setObras] = useState([]);
   const [zonas, setZonas] = useState([]);
@@ -38,6 +43,11 @@ function ObrasPanel({ currentUser }) {
   const [form, setForm] = useState(FORM_INICIAL);
   const [submitting, setSubmitting] = useState(false);
   const [mostrarModalObra, setMostrarModalObra] = useState(false);
+
+  const [obraEnEdicion, setObraEnEdicion] = useState(null);
+  const [editarObraForm, setEditarObraForm] = useState(EDITAR_OBRA_FORM_INICIAL);
+  const [editarObraError, setEditarObraError] = useState("");
+  const [guardandoObra, setGuardandoObra] = useState(false);
 
   const [obraSeleccionadaId, setObraSeleccionadaId] = useState(null);
   const [subObras, setSubObras] = useState([]);
@@ -150,6 +160,7 @@ function ObrasPanel({ currentUser }) {
           fechaInicio: form.fechaInicio || undefined,
           fechaFinEstimada: form.fechaFinEstimada || undefined,
           localidadId,
+          residenteId: form.residenteId || undefined,
         }),
       });
 
@@ -176,6 +187,33 @@ function ObrasPanel({ currentUser }) {
       setSubObraError(err.message);
     } finally {
       setLoadingSubObras(false);
+    }
+  }
+
+  function handleOpenEditarObra(obra) {
+    setObraEnEdicion(obra);
+    setEditarObraForm({ estado: obra.estado, residenteId: obra.residenteId ? String(obra.residenteId) : "" });
+    setEditarObraError("");
+  }
+
+  async function handleGuardarEdicionObra(e) {
+    e.preventDefault();
+    setEditarObraError("");
+    setGuardandoObra(true);
+    try {
+      const data = await apiFetch(`/api/obras/${obraEnEdicion.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          estado: editarObraForm.estado,
+          residenteId: editarObraForm.residenteId || null,
+        }),
+      });
+      setObras((prev) => prev.map((o) => (o.id === data.obra.id ? { ...o, ...data.obra } : o)));
+      setObraEnEdicion(null);
+    } catch (err) {
+      setEditarObraError(err.message);
+    } finally {
+      setGuardandoObra(false);
     }
   }
 
@@ -237,10 +275,12 @@ function ObrasPanel({ currentUser }) {
 
   const localidadesDisponibles = form.zonaId && form.zonaId !== NUEVA ? localidadesPorZona[form.zonaId] || [] : [];
   const necesitaLocalidadNueva = form.zonaId === NUEVA || form.localidadId === NUEVA;
-  // No se limita a Residentes: cualquier usuario de la empresa puede
-  // formar parte del equipo asignado a una sub-obra.
+  // No se limita por rol: la misma persona puede ser residente lider de
+  // una obra y responsable de calidad/produccion de otra al mismo
+  // tiempo, asi que cualquier usuario de la empresa puede ocupar
+  // cualquiera de estos lugares.
   const equipoDisponible = usuarios;
-  const calidadDisponibles = usuarios.filter((u) => u.rol === "CALIDAD_PRODUCCION");
+  const calidadDisponibles = usuarios;
   const obraSeleccionada = obras.find((o) => o.id === obraSeleccionadaId);
 
   return (
@@ -266,8 +306,10 @@ function ObrasPanel({ currentUser }) {
                   <th>Cliente</th>
                   <th>Localidad</th>
                   <th>Estado</th>
+                  <th>Residente lider</th>
                   <th>Presupuesto</th>
                   <th>Avance</th>
+                  {esAdmin && <th></th>}
                 </tr>
               </thead>
               <tbody>
@@ -285,10 +327,25 @@ function ObrasPanel({ currentUser }) {
                     <td>
                       <span className="role-pill">{obra.estado}</span>
                     </td>
+                    <td>{obra.residente?.name || "-"}</td>
                     <td>{obra.presupuesto != null ? Number(obra.presupuesto).toLocaleString() : "-"}</td>
                     <td>
                       <ProgressBar value={obra.porcentaje} />
                     </td>
+                    {esAdmin && (
+                      <td>
+                        <button
+                          className="btn-link"
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleOpenEditarObra(obra);
+                          }}
+                        >
+                          Editar
+                        </button>
+                      </td>
+                    )}
                   </tr>
                 ))}
               </tbody>
@@ -488,6 +545,22 @@ function ObrasPanel({ currentUser }) {
               />
             </div>
 
+            <div className="field">
+              <label htmlFor="obraResidente">Residente lider (opcional)</label>
+              <select
+                id="obraResidente"
+                value={form.residenteId}
+                onChange={(e) => setForm({ ...form, residenteId: e.target.value })}
+              >
+                <option value="">Sin asignar</option>
+                {usuarios.map((usuario) => (
+                  <option key={usuario.id} value={usuario.id}>
+                    {usuario.name} ({usuario.rol})
+                  </option>
+                ))}
+              </select>
+            </div>
+
             <button className="btn-primary" type="submit" disabled={submitting}>
               {submitting ? "Creando..." : "Crear obra"}
             </button>
@@ -586,6 +659,48 @@ function ObrasPanel({ currentUser }) {
           puedeMarcarUrgente
           onClose={() => setSubObraParaActividades(null)}
         />
+      )}
+
+      {obraEnEdicion && (
+        <Modal title={`Editar ${obraEnEdicion.nombre}`} onClose={() => setObraEnEdicion(null)}>
+          {editarObraError && <div className="form-error">{editarObraError}</div>}
+          <form className="stacked-form" onSubmit={handleGuardarEdicionObra}>
+            <div className="field">
+              <label htmlFor="editarObraEstado">Estado</label>
+              <select
+                id="editarObraEstado"
+                value={editarObraForm.estado}
+                onChange={(e) => setEditarObraForm({ ...editarObraForm, estado: e.target.value })}
+              >
+                {ESTADOS_OBRA.map((estado) => (
+                  <option key={estado} value={estado}>
+                    {estado}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="field">
+              <label htmlFor="editarObraResidente">Residente lider</label>
+              <select
+                id="editarObraResidente"
+                value={editarObraForm.residenteId}
+                onChange={(e) => setEditarObraForm({ ...editarObraForm, residenteId: e.target.value })}
+              >
+                <option value="">Sin asignar</option>
+                {usuarios.map((usuario) => (
+                  <option key={usuario.id} value={usuario.id}>
+                    {usuario.name} ({usuario.rol})
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <button className="btn-primary" type="submit" disabled={guardandoObra}>
+              {guardandoObra ? "Guardando..." : "Guardar cambios"}
+            </button>
+          </form>
+        </Modal>
       )}
     </>
   );

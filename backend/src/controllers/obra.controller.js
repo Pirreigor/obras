@@ -131,7 +131,7 @@ async function update(req, res) {
     }
   }
 
-  if (residenteId != null) {
+  if (residenteId) {
     const residente = await prisma.usuario.findFirst({
       where: { id: Number(residenteId), empresaId: req.user.empresaId },
     });
@@ -152,7 +152,9 @@ async function update(req, res) {
       fechaInicio: fechaInicio ? new Date(fechaInicio) : undefined,
       fechaFinEstimada: fechaFinEstimada ? new Date(fechaFinEstimada) : undefined,
       localidadId: localidadId != null ? Number(localidadId) : undefined,
-      residenteId: residenteId != null ? Number(residenteId) : undefined,
+      // undefined = no tocar el campo (no vino en el body); null o "" =
+      // sacar el residente lider asignado; un id = asignarlo.
+      residenteId: residenteId !== undefined ? (residenteId ? Number(residenteId) : null) : undefined,
     },
   });
 

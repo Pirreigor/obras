@@ -57,7 +57,11 @@ function puedeAprobarObra(user, obra) {
   if (user.rol === "ADMINISTRADOR" || user.rol === "SUPERVISOR") {
     return true;
   }
-  return user.rol === "RESIDENTE" && obra?.residenteId === user.id;
+  // No se exige que el rol global sea RESIDENTE: la misma persona puede
+  // ser residente lider de una obra y responsable de calidad/produccion
+  // de otra al mismo tiempo. Lo que da la autoridad es estar asignado
+  // como Obra.residenteId, sin importar el rol de base de esa persona.
+  return obra?.residenteId === user.id;
 }
 
 async function listMias(req, res) {
