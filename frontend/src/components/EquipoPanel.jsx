@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { apiFetch } from "../api";
 import Modal from "./Modal";
 
-const ROLES = ["ADMINISTRADOR", "SUPERVISOR", "RESIDENTE", "CALIDAD_PRODUCCION"];
+const ROLES = ["ADMINISTRADOR", "SUPERVISOR", "RESIDENTE", "CALIDAD_PRODUCCION", "ALMACENERO"];
 const FORM_INICIAL = { email: "", rol: "RESIDENTE" };
 
 function EquipoPanel({ currentUser }) {

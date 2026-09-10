@@ -18,6 +18,71 @@ function detalleSolicitud(s) {
   return s.descripcion || "-";
 }
 
+function RegistrarLlegadaModal({ solicitud, onClose, onConfirmar }) {
+  const [cantidad, setCantidad] = useState("");
+  const [comentario, setComentario] = useState("");
+  const [error, setError] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+
+  const esMaterial = solicitud.tipo === "MATERIAL";
+  const cantidadRecibida = solicitud.cantidadRecibida || 0;
+  const restante = esMaterial ? Math.max(0, solicitud.cantidad - cantidadRecibida) : null;
+
+  async function handleSubmit(e) {
+    e.preventDefault();
+    setError("");
+    setSubmitting(true);
+    try {
+      await onConfirmar({ cantidad: cantidad || undefined, comentario: comentario || undefined });
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <Modal title="Registrar llegada" onClose={onClose}>
+      <p className="muted">{detalleSolicitud(solicitud)}</p>
+      {esMaterial && (
+        <p className="muted">
+          Recibido hasta ahora: {cantidadRecibida} / {solicitud.cantidad} {solicitud.materialCatalogo?.unidadMedida}
+          {" "}
+          (falta {restante}).
+        </p>
+      )}
+      {error && <div className="form-error">{error}</div>}
+      <form className="stacked-form" onSubmit={handleSubmit}>
+        {esMaterial ? (
+          <div className="field">
+            <label htmlFor="llegadaCantidad">
+              Cantidad que llego ahora ({solicitud.materialCatalogo?.unidadMedida})
+            </label>
+            <input
+              id="llegadaCantidad"
+              type="number"
+              min="0"
+              step="0.01"
+              value={cantidad}
+              onChange={(e) => setCantidad(e.target.value)}
+              required
+            />
+          </div>
+        ) : (
+          <p className="muted">Este tipo no lleva cantidad; el comentario alcanza para dejar constancia.</p>
+        )}
+        <div className="field">
+          <label htmlFor="llegadaComentario">Comentario (opcional)</label>
+          <input id="llegadaComentario" value={comentario} onChange={(e) => setComentario(e.target.value)} />
+        </div>
+        <button className="btn-primary" type="submit" disabled={submitting}>
+          {submitting ? "Guardando..." : "Registrar llegada"}
+        </button>
+      </form>
+    </Modal>
+  );
+}
+
 function AgruparPedidoModal({ cantidad, onClose, onConfirmar }) {
   const [factura, setFactura] = useState("");
   const [fechaEstimadaLlegada, setFechaEstimadaLlegada] = useState("");
@@ -73,6 +138,12 @@ function PedidosPanel({ currentUser }) {
   // por obra, aca solo se decide si se muestran los controles.
   const puedeAgrupar = esGestor || currentUser?.rol === "RESIDENTE";
 
+  // El Almacenero, un gestor, o el mismo que hizo la solicitud pueden
+  // registrar que llego una entrega (el backend valida el detalle).
+  function puedeRegistrarLlegada(s) {
+    return esGestor || currentUser?.rol === "ALMACENERO" || s.creadoPor?.id === currentUser?.id;
+  }
+
   const [solicitudes, setSolicitudes] = useState([]);
   const [pedidos, setPedidos] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -88,6 +159,7 @@ function PedidosPanel({ currentUser }) {
   const [mostrarForm, setMostrarForm] = useState(false);
   const [seleccionadas, setSeleccionadas] = useState([]);
   const [mostrarAgrupar, setMostrarAgrupar] = useState(false);
+  const [solicitudParaLlegada, setSolicitudParaLlegada] = useState(null);
 
   async function loadSolicitudes() {
     setLoading(true);
@@ -158,6 +230,15 @@ function PedidosPanel({ currentUser }) {
     loadSolicitudes();
   }
 
+  async function handleRegistrarLlegada({ cantidad, comentario }) {
+    const data = await apiFetch(`/api/solicitudes/${solicitudParaLlegada.id}/recepciones`, {
+      method: "POST",
+      body: JSON.stringify({ cantidad, comentario }),
+    });
+    setSolicitudes((prev) => prev.map((s) => (s.id === data.solicitud.id ? data.solicitud : s)));
+    setSolicitudParaLlegada(null);
+  }
+
   async function marcarRecibido(pedido) {
     setRecibiendoId(pedido.id);
     setError("");
@@ -223,7 +304,7 @@ function PedidosPanel({ currentUser }) {
                 <th>Urgente</th>
                 <th>Estado</th>
                 <th>Pedido por</th>
-                {puedeAgrupar && <th>Acciones</th>}
+                <th>Acciones</th>
               </tr>
             </thead>
             <tbody>
@@ -245,7 +326,14 @@ function PedidosPanel({ currentUser }) {
                   </td>
                   <td>{s.actividadProgramada?.actividadCatalogo?.nombre || "-"}</td>
                   <td>{TIPOS.find((t) => t.value === s.tipo)?.label || s.tipo}</td>
-                  <td>{detalleSolicitud(s)}</td>
+                  <td>
+                    {detalleSolicitud(s)}
+                    {s.tipo === "MATERIAL" && (s.estado === "APROBADO" || s.estado === "RESUELTO") && (
+                      <div className="muted">
+                        Recibido: {s.cantidadRecibida || 0} / {s.cantidad} {s.materialCatalogo?.unidadMedida}
+                      </div>
+                    )}
+                  </td>
                   <td>{s.fechaNecesaria ? s.fechaNecesaria.slice(0, 10) : "-"}</td>
                   <td>{s.urgente ? <span className="urgente-pill">Urgente</span> : "-"}</td>
                   <td>
@@ -261,20 +349,24 @@ function PedidosPanel({ currentUser }) {
                     )}
                   </td>
                   <td>{s.creadoPor?.name || "-"}</td>
-                  {puedeAgrupar && (
-                    <td>
-                      {s.estado === "SOLICITADO" && (
-                        <button
-                          className="btn-link"
-                          type="button"
-                          disabled={cambiandoEstadoId === s.id}
-                          onClick={() => cambiarEstado(s, "RECHAZADO")}
-                        >
-                          Rechazar
-                        </button>
-                      )}
-                    </td>
-                  )}
+                  <td>
+                    {puedeAgrupar && s.estado === "SOLICITADO" && (
+                      <button
+                        className="btn-link"
+                        type="button"
+                        disabled={cambiandoEstadoId === s.id}
+                        onClick={() => cambiarEstado(s, "RECHAZADO")}
+                      >
+                        Rechazar
+                      </button>
+                    )}
+                    {s.estado === "APROBADO" && puedeRegistrarLlegada(s) && (
+                      <button className="btn-link" type="button" onClick={() => setSolicitudParaLlegada(s)}>
+                        Registrar llegada
+                      </button>
+                    )}
+                    {s.estado !== "SOLICITADO" && s.estado !== "APROBADO" && "-"}
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -346,6 +438,14 @@ function PedidosPanel({ currentUser }) {
           cantidad={seleccionadas.length}
           onClose={() => setMostrarAgrupar(false)}
           onConfirmar={handleAgrupar}
+        />
+      )}
+
+      {solicitudParaLlegada && (
+        <RegistrarLlegadaModal
+          solicitud={solicitudParaLlegada}
+          onClose={() => setSolicitudParaLlegada(null)}
+          onConfirmar={handleRegistrarLlegada}
         />
       )}
     </section>

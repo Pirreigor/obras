@@ -10,6 +10,7 @@ const {
   updateActividad,
   cerrarActividad,
   listAvances,
+  exportarAvances,
   createAvance,
 } = require("../controllers/subObra.controller");
 const { requireAuth } = require("../middleware/auth.middleware");
@@ -33,6 +34,7 @@ router.patch("/:id/actividades/:actividadId", updateActividad);
 router.post("/:id/actividades/:actividadId/cerrar", cerrarActividad);
 
 router.get("/:id/avances", listAvances);
+router.get("/:id/avances/exportar", exportarAvances);
 router.post("/:id/avances", requireRole("ADMINISTRADOR", "RESIDENTE", "CALIDAD_PRODUCCION"), createAvance);
 
 module.exports = router;

@@ -6,7 +6,7 @@ const { signAccessToken } = require("../utils/jwt");
 const { enviarInvitacion } = require("../utils/mail");
 
 const INVITACION_VIGENCIA_DIAS = 7;
-const ROLES_INVITABLES = ["ADMINISTRADOR", "SUPERVISOR", "RESIDENTE", "CALIDAD_PRODUCCION"];
+const ROLES_INVITABLES = ["ADMINISTRADOR", "SUPERVISOR", "RESIDENTE", "CALIDAD_PRODUCCION", "ALMACENERO"];
 
 async function getVistasClaves(usuario) {
   if (usuario.rol === "ADMINISTRADOR") {

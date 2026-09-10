@@ -14,6 +14,9 @@ enum Rol {
   SUPERVISOR
   RESIDENTE
   CALIDAD_PRODUCCION
+  // Registra las llegadas parciales de material de un pedido (no
+  // gestiona obras/sub-obras ni aprueba nada).
+  ALMACENERO
 }
 
 enum EstadoObra {
@@ -84,15 +87,16 @@ model Usuario {
   passwordHash String
   rol          Rol      @default(CALIDAD_PRODUCCION)
 
-  obrasComoResidente      Obra[]             @relation("ObraResidente")
-  subObrasComoResponsable SubObra[]          @relation("SubObraResponsableCalidad")
+  obrasComoResidente      Obra[]              @relation("ObraResidente")
+  subObrasComoResponsable SubObra[]           @relation("SubObraResponsableCalidad")
   subObrasComoResidente   SubObraResidente[]
-  registrosDiarios        RegistroDiario[]   @relation("RegistroDiarioCreadoPor")
-  avancesCreados          Avance[]           @relation("AvanceCreadoPor")
-  solicitudesCreadas      Solicitud[]        @relation("SolicitudCreadoPor")
-  solicitudesResueltas    Solicitud[]        @relation("SolicitudAprobadoPor")
-  pedidosCreados          Pedido[]           @relation("PedidoCreadoPor")
-  invitacionesEnviadas    Invitacion[]       @relation("InvitacionInvitadoPor")
+  registrosDiarios        RegistroDiario[]    @relation("RegistroDiarioCreadoPor")
+  avancesCreados          Avance[]            @relation("AvanceCreadoPor")
+  solicitudesCreadas      Solicitud[]         @relation("SolicitudCreadoPor")
+  solicitudesResueltas    Solicitud[]         @relation("SolicitudAprobadoPor")
+  pedidosCreados          Pedido[]            @relation("PedidoCreadoPor")
+  recepcionesRegistradas  RecepcionMaterial[] @relation("RecepcionRegistradoPor")
+  invitacionesEnviadas    Invitacion[]        @relation("InvitacionInvitadoPor")
   vistasAsignadas         UsuarioVista[]
 
   createdAt DateTime @default(now())
@@ -363,11 +367,31 @@ model Solicitud {
   aprobadoPor           Usuario?             @relation("SolicitudAprobadoPor", fields: [aprobadoPorId], references: [id], onDelete: SetNull)
   pedidoId              Int?
   pedido                Pedido?              @relation(fields: [pedidoId], references: [id], onDelete: SetNull)
+  recepciones           RecepcionMaterial[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@map("solicitudes")
+}
+
+// Registro de una entrega parcial: "hoy llegaron 20 bolsas de las 50
+// pedidas". cantidad es lo que llego EN ESTE registro (no acumulado);
+// se suman todos los de una Solicitud para saber cuanto llego en total.
+// Lo carga el Almacenero, el ingeniero que la pidio, o un gestor.
+model RecepcionMaterial {
+  id              Int       @id @default(autoincrement())
+  solicitudId     Int
+  solicitud       Solicitud @relation(fields: [solicitudId], references: [id], onDelete: Cascade)
+  cantidad        Float?
+  comentario      String?
+  fecha           DateTime  @default(now())
+  registradoPorId Int?
+  registradoPor   Usuario?  @relation("RecepcionRegistradoPor", fields: [registradoPorId], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+
+  @@map("recepciones_material")
 }
 
 // Agrupa varias Solicitudes ya aprobadas en una sola compra/gestion:

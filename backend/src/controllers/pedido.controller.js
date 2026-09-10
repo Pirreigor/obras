@@ -1,18 +1,15 @@
 const prisma = require("../utils/prisma");
 const { puedeAprobarObra } = require("./subObra.controller");
-
-const SOLICITUD_INCLUDE = {
-  subObra: { select: { id: true, nombre: true, obra: { select: { id: true, nombre: true } } } },
-  materialCatalogo: true,
-  actividadProgramada: { include: { actividadCatalogo: true } },
-  creadoPor: { select: { id: true, name: true } },
-  aprobadoPor: { select: { id: true, name: true } },
-};
+const { SOLICITUD_INCLUDE, conCantidadRecibida } = require("./solicitud.controller");
 
 const PEDIDO_INCLUDE = {
   creadoPor: { select: { id: true, name: true } },
   solicitudes: { include: SOLICITUD_INCLUDE },
 };
+
+function conSolicitudesCalculadas(pedido) {
+  return { ...pedido, solicitudes: pedido.solicitudes.map(conCantidadRecibida) };
+}
 
 // Igual criterio que en las solicitudes: Administrador/Supervisor
 // aprueban cualquier cosa; un residente solo si es el residente lider
@@ -58,7 +55,7 @@ async function list(req, res) {
     orderBy: { createdAt: "desc" },
   });
 
-  return res.json({ pedidos });
+  return res.json({ pedidos: pedidos.map(conSolicitudesCalculadas) });
 }
 
 async function create(req, res) {
@@ -103,7 +100,7 @@ async function create(req, res) {
     return tx.pedido.findUnique({ where: { id: nuevo.id }, include: PEDIDO_INCLUDE });
   });
 
-  return res.status(201).json({ pedido });
+  return res.status(201).json({ pedido: conSolicitudesCalculadas(pedido) });
 }
 
 async function marcarRecibido(req, res) {
@@ -130,7 +127,7 @@ async function marcarRecibido(req, res) {
     return tx.pedido.findUnique({ where: { id }, include: PEDIDO_INCLUDE });
   });
 
-  return res.json({ pedido: actualizado });
+  return res.json({ pedido: conSolicitudesCalculadas(actualizado) });
 }
 
 module.exports = {

@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { apiFetch } from "../api";
+import { apiFetch, apiDownload } from "../api";
 import Modal from "./Modal";
 import NuevaSolicitudModal from "./NuevaSolicitudModal";
 
@@ -51,6 +51,19 @@ function ActividadesModal({ subObra, puedeCrear, puedeMarcarUrgente, onClose }) 
   const [submitting, setSubmitting] = useState(false);
   const [mostrarPedido, setMostrarPedido] = useState(false);
   const [actividadParaPedido, setActividadParaPedido] = useState(null);
+  const [exportando, setExportando] = useState(false);
+
+  async function handleExportar() {
+    setExportando(true);
+    setError("");
+    try {
+      await apiDownload(`/api/sub-obras/${subObra.id}/avances/exportar`, `avances-${subObra.nombre}.xlsx`);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setExportando(false);
+    }
+  }
 
   useEffect(() => {
     async function load() {
@@ -150,26 +163,31 @@ function ActividadesModal({ subObra, puedeCrear, puedeMarcarUrgente, onClose }) 
 
   return (
     <Modal title={`Actividades de ${subObra.nombre}`} onClose={onClose}>
-      {puedeCrear && (
-        <div className="panel-card-header">
-          <span className="muted">{actividades.length} actividad(es)</span>
-          <div className="calendar-nav">
-            <button
-              className="btn-small"
-              type="button"
-              onClick={() => {
-                setActividadParaPedido(null);
-                setMostrarPedido(true);
-              }}
-            >
-              + Pedir
-            </button>
-            <button className="btn-small" type="button" onClick={handleOpenForm}>
-              + Nueva actividad
-            </button>
-          </div>
+      <div className="panel-card-header">
+        <span className="muted">{actividades.length} actividad(es)</span>
+        <div className="calendar-nav">
+          <button className="btn-small" type="button" onClick={handleExportar} disabled={exportando}>
+            {exportando ? "Exportando..." : "Exportar Excel"}
+          </button>
+          {puedeCrear && (
+            <>
+              <button
+                className="btn-small"
+                type="button"
+                onClick={() => {
+                  setActividadParaPedido(null);
+                  setMostrarPedido(true);
+                }}
+              >
+                + Pedir
+              </button>
+              <button className="btn-small" type="button" onClick={handleOpenForm}>
+                + Nueva actividad
+              </button>
+            </>
+          )}
         </div>
-      )}
+      </div>
       {error && <div className="form-error">{error}</div>}
       {loading ? (
         <p className="muted">Cargando...</p>

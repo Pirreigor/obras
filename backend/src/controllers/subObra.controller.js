@@ -1,3 +1,4 @@
+const ExcelJS = require("exceljs");
 const prisma = require("../utils/prisma");
 const { porcentajeSubObra, porcentajeActividad, cantidadActividad } = require("../utils/progreso");
 
@@ -388,6 +389,57 @@ async function listAvances(req, res) {
   return res.json({ avances });
 }
 
+// Pequeño Excel con el historial de avances de la sub-obra (uno por
+// partida/actividad), para llevarlo afuera del sistema si hace falta.
+async function exportarAvances(req, res) {
+  const subObraId = Number(req.params.id);
+
+  const subObra = await prisma.subObra.findFirst({ where: scopedWhere(req, { id: subObraId }) });
+  if (!subObra) {
+    return res.status(404).json({ message: "Sub-obra no encontrada" });
+  }
+
+  const avances = await prisma.avance.findMany({
+    where: { subObraId },
+    include: { creadoPor: { select: { name: true } }, actividadProgramada: { include: { actividadCatalogo: true } } },
+    orderBy: { fecha: "asc" },
+  });
+
+  const workbook = new ExcelJS.Workbook();
+  const sheet = workbook.addWorksheet("Avances");
+  sheet.columns = [
+    { header: "Fecha", key: "fecha", width: 14 },
+    { header: "Actividad", key: "actividad", width: 30 },
+    { header: "Cantidad", key: "cantidad", width: 12 },
+    { header: "Unidad", key: "unidad", width: 10 },
+    { header: "Porcentaje", key: "porcentaje", width: 12 },
+    { header: "Comentario", key: "comentario", width: 32 },
+    { header: "Registrado por", key: "registradoPor", width: 22 },
+    { header: "Evidencia", key: "evidencia", width: 45 },
+  ];
+  sheet.getRow(1).font = { bold: true };
+
+  for (const avance of avances) {
+    sheet.addRow({
+      fecha: avance.fecha.toISOString().slice(0, 10),
+      actividad: avance.actividadProgramada?.actividadCatalogo?.nombre || "-",
+      cantidad: avance.cantidad ?? "",
+      unidad: avance.actividadProgramada?.actividadCatalogo?.unidad || "",
+      porcentaje: avance.porcentaje,
+      comentario: avance.descripcion || "",
+      registradoPor: avance.creadoPor?.name || "",
+      evidencia: avance.imagenes?.[0] || "",
+    });
+  }
+
+  const nombreArchivo = `avances-${subObra.nombre.replace(/[^a-z0-9]+/gi, "-").toLowerCase()}.xlsx`;
+  res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+  res.setHeader("Content-Disposition", `attachment; filename="${nombreArchivo}"`);
+
+  await workbook.xlsx.write(res);
+  res.end();
+}
+
 async function createAvance(req, res) {
   const subObraId = Number(req.params.id);
   const { titulo, descripcion, porcentaje, cantidad, imagenes, actividadProgramadaId, fecha } = req.body;
@@ -451,6 +503,7 @@ module.exports = {
   updateActividad,
   cerrarActividad,
   listAvances,
+  exportarAvances,
   createAvance,
   puedeGestionarSubObra,
   puedeAprobarObra,

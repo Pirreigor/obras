@@ -1,6 +1,6 @@
 const prisma = require("../utils/prisma");
 
-const ROLES_EMPRESA = ["ADMINISTRADOR", "SUPERVISOR", "RESIDENTE", "CALIDAD_PRODUCCION"];
+const ROLES_EMPRESA = ["ADMINISTRADOR", "SUPERVISOR", "RESIDENTE", "CALIDAD_PRODUCCION", "ALMACENERO"];
 
 async function list(req, res) {
   const usuarios = await prisma.usuario.findMany({

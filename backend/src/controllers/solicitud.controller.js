@@ -14,7 +14,27 @@ const SOLICITUD_INCLUDE = {
   creadoPor: { select: { id: true, name: true } },
   aprobadoPor: { select: { id: true, name: true } },
   pedido: true,
+  recepciones: {
+    include: { registradoPor: { select: { id: true, name: true } } },
+    orderBy: { fecha: "desc" },
+  },
 };
+
+// Cuanto llego en total (suma de las entregas parciales registradas).
+function conCantidadRecibida(solicitud) {
+  const cantidadRecibida = (solicitud.recepciones || []).reduce((sum, r) => sum + (r.cantidad || 0), 0);
+  return { ...solicitud, cantidadRecibida };
+}
+
+// Quien puede registrar que llego una entrega: Administrador/Supervisor,
+// el Almacenero, o el mismo usuario que hizo la solicitud (el "ingeniero
+// a cargo").
+function puedeRegistrarRecepcion(user, solicitud) {
+  if (user.rol === "ADMINISTRADOR" || user.rol === "SUPERVISOR" || user.rol === "ALMACENERO") {
+    return true;
+  }
+  return solicitud.creadoPorId === user.id;
+}
 
 function scopedWhere(req, extra = {}) {
   return {
@@ -54,7 +74,7 @@ async function list(req, res) {
     orderBy: { createdAt: "desc" },
   });
 
-  return res.json({ solicitudes });
+  return res.json({ solicitudes: solicitudes.map(conCantidadRecibida) });
 }
 
 async function create(req, res) {
@@ -152,7 +172,7 @@ async function create(req, res) {
     include: SOLICITUD_INCLUDE,
   });
 
-  return res.status(201).json({ solicitud });
+  return res.status(201).json({ solicitud: conCantidadRecibida(solicitud) });
 }
 
 async function updateEstado(req, res) {
@@ -181,11 +201,59 @@ async function updateEstado(req, res) {
     include: SOLICITUD_INCLUDE,
   });
 
-  return res.json({ solicitud: actualizada });
+  return res.json({ solicitud: conCantidadRecibida(actualizada) });
+}
+
+// Registra una entrega parcial de una solicitud ya aprobada (agrupada
+// en un Pedido). Si es MATERIAL y la suma de lo recibido llega a la
+// cantidad pedida, la solicitud pasa sola a RESUELTO.
+async function crearRecepcion(req, res) {
+  const id = Number(req.params.id);
+  const { cantidad, comentario } = req.body;
+
+  const solicitud = await prisma.solicitud.findFirst({ where: scopedWhere(req, { id }) });
+  if (!solicitud) {
+    return res.status(404).json({ message: "Solicitud no encontrada" });
+  }
+
+  if (solicitud.estado !== "APROBADO") {
+    return res.status(400).json({ message: "Solo se puede registrar la llegada de solicitudes APROBADAS" });
+  }
+
+  if (!puedeRegistrarRecepcion(req.user, solicitud)) {
+    return res.status(403).json({ message: "No tenes permiso para registrar la llegada de esta solicitud" });
+  }
+
+  const [, solicitudActualizada] = await prisma.$transaction(async (tx) => {
+    const recepcion = await tx.recepcionMaterial.create({
+      data: {
+        solicitudId: id,
+        cantidad: cantidad != null && cantidad !== "" ? Number(cantidad) : null,
+        comentario: comentario || null,
+        registradoPorId: req.user.id,
+      },
+    });
+
+    if (solicitud.tipo === "MATERIAL" && solicitud.cantidad != null) {
+      const previas = await tx.recepcionMaterial.findMany({ where: { solicitudId: id }, select: { cantidad: true } });
+      const totalRecibido = previas.reduce((sum, r) => sum + (r.cantidad || 0), 0);
+      if (totalRecibido >= solicitud.cantidad) {
+        await tx.solicitud.update({ where: { id }, data: { estado: "RESUELTO" } });
+      }
+    }
+
+    const actualizada = await tx.solicitud.findUnique({ where: { id }, include: SOLICITUD_INCLUDE });
+    return [recepcion, actualizada];
+  });
+
+  return res.status(201).json({ solicitud: conCantidadRecibida(solicitudActualizada) });
 }
 
 module.exports = {
   list,
   create,
   updateEstado,
+  crearRecepcion,
+  conCantidadRecibida,
+  SOLICITUD_INCLUDE,
 };
