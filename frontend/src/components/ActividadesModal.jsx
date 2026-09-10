@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { apiFetch, apiDownload } from "../api";
 import Modal from "./Modal";
+import ConfirmModal from "./ConfirmModal";
 import NuevaSolicitudModal from "./NuevaSolicitudModal";
 
 const NUEVA = "__nueva__";
@@ -52,6 +53,9 @@ function ActividadesModal({ subObra, puedeCrear, puedeMarcarUrgente, onClose }) 
   const [mostrarPedido, setMostrarPedido] = useState(false);
   const [actividadParaPedido, setActividadParaPedido] = useState(null);
   const [exportando, setExportando] = useState(false);
+  const [actividadAEliminar, setActividadAEliminar] = useState(null);
+  const [eliminandoError, setEliminandoError] = useState("");
+  const [eliminando, setEliminando] = useState(false);
 
   async function handleExportar() {
     setExportando(true);
@@ -117,6 +121,20 @@ function ActividadesModal({ subObra, puedeCrear, puedeMarcarUrgente, onClose }) 
       setError(err.message);
     } finally {
       setEstadoEnCurso(null);
+    }
+  }
+
+  async function handleEliminarActividad() {
+    setEliminandoError("");
+    setEliminando(true);
+    try {
+      await apiFetch(`/api/sub-obras/${subObra.id}/actividades/${actividadAEliminar.id}`, { method: "DELETE" });
+      setActividades((prev) => prev.filter((a) => a.id !== actividadAEliminar.id));
+      setActividadAEliminar(null);
+    } catch (err) {
+      setEliminandoError(err.message);
+    } finally {
+      setEliminando(false);
     }
   }
 
@@ -207,6 +225,7 @@ function ActividadesModal({ subObra, puedeCrear, puedeMarcarUrgente, onClose }) 
                 <th>Cierre real</th>
                 <th>Urgente</th>
                 {puedeCrear && <th>Pedido</th>}
+                {puedeCrear && <th></th>}
               </tr>
             </thead>
             <tbody>
@@ -263,6 +282,20 @@ function ActividadesModal({ subObra, puedeCrear, puedeMarcarUrgente, onClose }) 
                         }}
                       >
                         Pedir
+                      </button>
+                    </td>
+                  )}
+                  {puedeCrear && (
+                    <td>
+                      <button
+                        className="btn-link btn-link-danger"
+                        type="button"
+                        onClick={() => {
+                          setEliminandoError("");
+                          setActividadAEliminar(actividad);
+                        }}
+                      >
+                        Eliminar
                       </button>
                     </td>
                   )}
@@ -375,6 +408,24 @@ function ActividadesModal({ subObra, puedeCrear, puedeMarcarUrgente, onClose }) 
           actividadFijaId={actividadParaPedido}
           onClose={() => setMostrarPedido(false)}
           onCreada={() => setMostrarPedido(false)}
+        />
+      )}
+
+      {actividadAEliminar && (
+        <ConfirmModal
+          title="Eliminar actividad"
+          message={
+            <>
+              Esta accion es permanente y no se puede deshacer. Se van a borrar tambien los avances y solicitudes de
+              pedido asociados a "{actividadAEliminar.actividadCatalogo?.nombre}".
+              {eliminandoError && <div className="form-error" style={{ marginTop: 12 }}>{eliminandoError}</div>}
+            </>
+          }
+          confirmLabel={eliminando ? "Eliminando..." : "Eliminar definitivamente"}
+          danger
+          loading={eliminando}
+          onConfirm={handleEliminarActividad}
+          onClose={() => setActividadAEliminar(null)}
         />
       )}
     </Modal>

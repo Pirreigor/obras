@@ -44,7 +44,7 @@ const CONFIRM_TEXTOS = {
   "obra-eliminar": {
     title: "Eliminar obra",
     message: (a) =>
-      `Esta accion es permanente y no se puede deshacer. Si "${a.obra.nombre}" ya tiene avances registrados, la eliminacion va a ser rechazada (desactivala en ese caso).`,
+      `Esta accion es permanente y no se puede deshacer. Se van a borrar tambien todas sus sub-obras, actividades, avances y pedidos asociados a "${a.obra.nombre}". Si preferis conservar el historial, desactivala en vez de eliminarla.`,
     confirmLabel: "Eliminar definitivamente",
     danger: true,
   },
@@ -60,7 +60,7 @@ const CONFIRM_TEXTOS = {
   "subobra-eliminar": {
     title: "Eliminar sub-obra",
     message: (a) =>
-      `Esta accion es permanente y no se puede deshacer. Si "${a.subObra.nombre}" ya tiene avances registrados, la eliminacion va a ser rechazada (desactivala en ese caso).`,
+      `Esta accion es permanente y no se puede deshacer. Se van a borrar tambien sus actividades, avances y pedidos asociados a "${a.subObra.nombre}". Si preferis conservar el historial, desactivala en vez de eliminarla.`,
     confirmLabel: "Eliminar definitivamente",
     danger: true,
   },

@@ -892,6 +892,30 @@ body {
   box-shadow: inset 3px 0 0 var(--accent);
 }
 
+.data-table tr.table-group-header td {
+  padding-top: 16px;
+  font-weight: 700;
+  color: var(--ink);
+  white-space: normal;
+  border-bottom: 1px solid var(--border);
+}
+
+.data-table tr.table-group-header:first-child td {
+  padding-top: 0;
+}
+
+.data-table tr.table-subgroup-header td {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+  padding-top: 10px;
+  padding-bottom: 4px;
+  white-space: normal;
+  border-bottom: none;
+}
+
 .role-pill {
   font-family: var(--font-mono);
   font-size: 11px;

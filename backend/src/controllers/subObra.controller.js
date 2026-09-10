@@ -163,13 +163,9 @@ async function remove(req, res) {
     return res.status(403).json({ message: "No tenes permiso para eliminar esta sub-obra" });
   }
 
-  const tieneAvances = await prisma.avance.count({ where: { subObraId: id } });
-  if (tieneAvances > 0) {
-    return res.status(400).json({
-      message: "No se puede eliminar: esta sub-obra ya tiene avances registrados. Desactivala en vez de eliminarla.",
-    });
-  }
-
+  // Borra en cascada sus actividades, avances, solicitudes y pedidos
+  // asociados. No se bloquea por tener progreso: el frontend avisa con
+  // un modal de advertencia antes de llamar a este endpoint.
   await prisma.subObra.delete({ where: { id } });
 
   return res.status(204).send();
@@ -305,6 +301,35 @@ async function updateActividad(req, res) {
   });
 
   return res.json({ actividad: actualizada });
+}
+
+// Borra en cascada sus avances y solicitudes asociadas. No se bloquea
+// por tener progreso: el frontend avisa con un modal de advertencia
+// antes de llamar a este endpoint.
+async function removeActividad(req, res) {
+  const subObraId = Number(req.params.id);
+  const actividadId = Number(req.params.actividadId);
+
+  const subObra = await prisma.subObra.findFirst({
+    where: scopedWhere(req, { id: subObraId }),
+    include: { residentes: true },
+  });
+  if (!subObra) {
+    return res.status(404).json({ message: "Sub-obra no encontrada" });
+  }
+
+  if (!puedeGestionarSubObra(req.user, subObra)) {
+    return res.status(403).json({ message: "No tenes permiso para eliminar esta actividad" });
+  }
+
+  const actividad = await prisma.actividadProgramada.findFirst({ where: { id: actividadId, subObraId } });
+  if (!actividad) {
+    return res.status(404).json({ message: "Actividad no encontrada" });
+  }
+
+  await prisma.actividadProgramada.delete({ where: { id: actividadId } });
+
+  return res.status(204).send();
 }
 
 // Cantidad de dias que dura la actividad segun su plan (inclusive). Si
@@ -530,6 +555,7 @@ module.exports = {
   listActividades,
   createActividad,
   updateActividad,
+  removeActividad,
   cerrarActividad,
   listAvances,
   exportarAvances,

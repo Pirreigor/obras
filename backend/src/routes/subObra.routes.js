@@ -8,6 +8,7 @@ const {
   listActividades,
   createActividad,
   updateActividad,
+  removeActividad,
   cerrarActividad,
   listAvances,
   exportarAvances,
@@ -33,6 +34,7 @@ router.get("/:id/actividades", listActividades);
 // asignado a esta sub-obra puntual) se valida dentro del controller.
 router.post("/:id/actividades", createActividad);
 router.patch("/:id/actividades/:actividadId", updateActividad);
+router.delete("/:id/actividades/:actividadId", removeActividad);
 router.post("/:id/actividades/:actividadId/cerrar", cerrarActividad);
 
 router.get("/:id/avances", listAvances);

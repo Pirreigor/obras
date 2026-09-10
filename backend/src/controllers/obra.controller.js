@@ -222,19 +222,17 @@ async function update(req, res) {
   return res.json({ obra });
 }
 
+// Eliminar borra en cascada sus sub-obras, actividades, avances,
+// solicitudes y pedidos asociados (definido asi en el schema). No se
+// bloquea aunque tenga progreso: el frontend ya avisa con un modal de
+// advertencia antes de llamar a este endpoint; si se quiere conservar
+// el historial, la alternativa es desactivarla en vez de eliminarla.
 async function remove(req, res) {
   const id = Number(req.params.id);
 
   const existing = await prisma.obra.findFirst({ where: scopedWhere(req, { id }) });
   if (!existing) {
     return res.status(404).json({ message: "Obra no encontrada" });
-  }
-
-  const tieneAvances = await prisma.avance.count({ where: { subObra: { obraId: id } } });
-  if (tieneAvances > 0) {
-    return res.status(400).json({
-      message: "No se puede eliminar: esta obra ya tiene avances registrados. Desactivala en vez de eliminarla.",
-    });
   }
 
   await prisma.obra.delete({ where: { id } });

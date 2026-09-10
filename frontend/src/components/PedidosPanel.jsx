@@ -1,7 +1,27 @@
-import { useEffect, useState } from "react";
+import { Fragment, useEffect, useState } from "react";
 import { apiFetch } from "../api";
 import Modal from "./Modal";
 import NuevaSolicitudModal from "./NuevaSolicitudModal";
+
+// Agrupa las solicitudes por Obra y, dentro de cada obra, por Sub-obra,
+// preservando el orden en que aparecen (ya vienen ordenadas del backend).
+function agruparPorObraYSubObra(solicitudes) {
+  const porObra = new Map();
+  for (const s of solicitudes) {
+    const obraId = s.subObra.obra?.id ?? "sin-obra";
+    const obraNombre = s.subObra.obra?.nombre || "Sin obra";
+    if (!porObra.has(obraId)) {
+      porObra.set(obraId, { obraId, obraNombre, porSubObra: new Map() });
+    }
+    const grupoObra = porObra.get(obraId);
+    const subObraId = s.subObra.id;
+    if (!grupoObra.porSubObra.has(subObraId)) {
+      grupoObra.porSubObra.set(subObraId, { subObraId, subObraNombre: s.subObra.nombre, solicitudes: [] });
+    }
+    grupoObra.porSubObra.get(subObraId).solicitudes.push(s);
+  }
+  return [...porObra.values()].map((g) => ({ ...g, subObras: [...g.porSubObra.values()] }));
+}
 
 const TIPOS = [
   { value: "MATERIAL", label: "Material" },
@@ -255,6 +275,9 @@ function PedidosPanel({ currentUser }) {
     }
   }
 
+  const gruposPorObra = agruparPorObraYSubObra(solicitudes);
+  const numCols = 8 + (puedeAgrupar ? 1 : 0);
+
   return (
     <section className="panel-card">
       <div className="panel-card-header">
@@ -299,7 +322,6 @@ function PedidosPanel({ currentUser }) {
             <thead>
               <tr>
                 {puedeAgrupar && <th></th>}
-                <th>Sub-obra</th>
                 <th>Actividad</th>
                 <th>Tipo</th>
                 <th>Detalle</th>
@@ -311,66 +333,77 @@ function PedidosPanel({ currentUser }) {
               </tr>
             </thead>
             <tbody>
-              {solicitudes.map((s) => (
-                <tr key={s.id}>
-                  {puedeAgrupar && (
-                    <td>
-                      {s.estado === "SOLICITADO" && (
-                        <input
-                          type="checkbox"
-                          checked={seleccionadas.includes(s.id)}
-                          onChange={() => toggleSeleccionada(s.id)}
-                        />
-                      )}
-                    </td>
-                  )}
-                  <td>
-                    {s.subObra.obra?.nombre} &middot; {s.subObra.nombre}
-                  </td>
-                  <td>{s.actividadProgramada?.actividadCatalogo?.nombre || "-"}</td>
-                  <td>{TIPOS.find((t) => t.value === s.tipo)?.label || s.tipo}</td>
-                  <td>
-                    {detalleSolicitud(s)}
-                    {s.tipo === "MATERIAL" && (s.estado === "APROBADO" || s.estado === "RESUELTO") && (
-                      <div className="muted">
-                        Recibido: {s.cantidadRecibida || 0} / {s.cantidad} {s.materialCatalogo?.unidadMedida}
-                      </div>
-                    )}
-                  </td>
-                  <td>{s.fechaNecesaria ? s.fechaNecesaria.slice(0, 10) : "-"}</td>
-                  <td>{s.urgente ? <span className="urgente-pill">Urgente</span> : "-"}</td>
-                  <td>
-                    <span className="role-pill">{s.estado}</span>
-                    {(s.estado === "APROBADO" || s.estado === "RESUELTO") && s.pedido && (
-                      <div className="muted">
-                        Pedido #{s.pedido.id}
-                        {s.pedido.factura ? ` · Factura ${s.pedido.factura}` : ""}
-                        {s.pedido.fechaEstimadaLlegada
-                          ? ` · llega ${s.pedido.fechaEstimadaLlegada.slice(0, 10)}`
-                          : ""}
-                      </div>
-                    )}
-                  </td>
-                  <td>{s.creadoPor?.name || "-"}</td>
-                  <td>
-                    {puedeAgrupar && s.estado === "SOLICITADO" && (
-                      <button
-                        className="btn-link"
-                        type="button"
-                        disabled={cambiandoEstadoId === s.id}
-                        onClick={() => cambiarEstado(s, "RECHAZADO")}
-                      >
-                        Rechazar
-                      </button>
-                    )}
-                    {s.estado === "APROBADO" && puedeRegistrarLlegada(s) && (
-                      <button className="btn-link" type="button" onClick={() => setSolicitudParaLlegada(s)}>
-                        Registrar llegada
-                      </button>
-                    )}
-                    {s.estado !== "SOLICITADO" && s.estado !== "APROBADO" && "-"}
-                  </td>
-                </tr>
+              {gruposPorObra.map((grupoObra) => (
+                <Fragment key={grupoObra.obraId}>
+                  <tr className="table-group-header">
+                    <td colSpan={numCols}>{grupoObra.obraNombre}</td>
+                  </tr>
+                  {grupoObra.subObras.map((grupoSubObra) => (
+                    <Fragment key={grupoSubObra.subObraId}>
+                      <tr className="table-subgroup-header">
+                        <td colSpan={numCols}>{grupoSubObra.subObraNombre}</td>
+                      </tr>
+                      {grupoSubObra.solicitudes.map((s) => (
+                        <tr key={s.id}>
+                          {puedeAgrupar && (
+                            <td>
+                              {s.estado === "SOLICITADO" && (
+                                <input
+                                  type="checkbox"
+                                  checked={seleccionadas.includes(s.id)}
+                                  onChange={() => toggleSeleccionada(s.id)}
+                                />
+                              )}
+                            </td>
+                          )}
+                          <td>{s.actividadProgramada?.actividadCatalogo?.nombre || "-"}</td>
+                          <td>{TIPOS.find((t) => t.value === s.tipo)?.label || s.tipo}</td>
+                          <td>
+                            {detalleSolicitud(s)}
+                            {s.tipo === "MATERIAL" && (s.estado === "APROBADO" || s.estado === "RESUELTO") && (
+                              <div className="muted">
+                                Recibido: {s.cantidadRecibida || 0} / {s.cantidad} {s.materialCatalogo?.unidadMedida}
+                              </div>
+                            )}
+                          </td>
+                          <td>{s.fechaNecesaria ? s.fechaNecesaria.slice(0, 10) : "-"}</td>
+                          <td>{s.urgente ? <span className="urgente-pill">Urgente</span> : "-"}</td>
+                          <td>
+                            <span className="role-pill">{s.estado}</span>
+                            {(s.estado === "APROBADO" || s.estado === "RESUELTO") && s.pedido && (
+                              <div className="muted">
+                                Pedido #{s.pedido.id}
+                                {s.pedido.factura ? ` · Factura ${s.pedido.factura}` : ""}
+                                {s.pedido.fechaEstimadaLlegada
+                                  ? ` · llega ${s.pedido.fechaEstimadaLlegada.slice(0, 10)}`
+                                  : ""}
+                              </div>
+                            )}
+                          </td>
+                          <td>{s.creadoPor?.name || "-"}</td>
+                          <td>
+                            {puedeAgrupar && s.estado === "SOLICITADO" && (
+                              <button
+                                className="btn-link"
+                                type="button"
+                                disabled={cambiandoEstadoId === s.id}
+                                onClick={() => cambiarEstado(s, "RECHAZADO")}
+                              >
+                                Rechazar
+                              </button>
+                            )}
+                            {s.estado === "APROBADO" && puedeRegistrarLlegada(s) && (
+                              <button className="btn-link" type="button" onClick={() => setSolicitudParaLlegada(s)}>
+                                Registrar llegada
+                              </button>
+                            )}
+                            {s.estado !== "SOLICITADO" && s.estado !== "APROBADO" && "-"}
+                          </td>
+                        </tr>
+                      ))}
+                    </Fragment>
+                  ))}
+                </Fragment>
               ))}
             </tbody>
           </table>
