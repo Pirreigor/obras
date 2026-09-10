@@ -2,17 +2,27 @@
 // creadoAt como desempate). El % de una sub-obra es el promedio de sus
 // actividades, y el de una obra el promedio de sus sub-obras.
 
-function porcentajeActividad(actividad) {
-  const avances = actividad.avances || [];
-  if (avances.length === 0) {
-    return 0;
+function ultimoAvance(avances) {
+  if (!avances || avances.length === 0) {
+    return null;
   }
-  const ultimo = avances.reduce((a, b) => {
+  return avances.reduce((a, b) => {
     if (a.fecha > b.fecha) return a;
     if (a.fecha < b.fecha) return b;
     return a.createdAt >= b.createdAt ? a : b;
   });
-  return ultimo.porcentaje;
+}
+
+function porcentajeActividad(actividad) {
+  const ultimo = ultimoAvance(actividad.avances);
+  return ultimo ? ultimo.porcentaje : 0;
+}
+
+// Cantidad acumulada del ultimo avance (solo tiene sentido cuando la
+// actividad tiene metrado cargado); null si nunca se cargo nada.
+function cantidadActividad(actividad) {
+  const ultimo = ultimoAvance(actividad.avances);
+  return ultimo ? ultimo.cantidad : null;
 }
 
 function porcentajeSubObra(subObra) {
@@ -33,4 +43,4 @@ function porcentajeObra(obra) {
   return Math.round(total / subObras.length);
 }
 
-module.exports = { porcentajeActividad, porcentajeSubObra, porcentajeObra };
+module.exports = { porcentajeActividad, porcentajeSubObra, porcentajeObra, cantidadActividad };

@@ -1,5 +1,5 @@
 const prisma = require("../utils/prisma");
-const { porcentajeSubObra } = require("../utils/progreso");
+const { porcentajeSubObra, porcentajeActividad, cantidadActividad } = require("../utils/progreso");
 
 // Los inputs datetime-local llegan sin zona horaria ("2026-08-17T08:00").
 // Se interpretan como UTC literal (se agrega "Z") para que la hora
@@ -18,6 +18,16 @@ const PROGRESO_INCLUDE = {
 function conPorcentaje(subObra) {
   const { actividadesProgramadas, ...resto } = subObra;
   return { ...resto, porcentaje: porcentajeSubObra(subObra) };
+}
+
+// % a partir de una cantidad acumulada sobre el metrado de la actividad.
+// null si la actividad no tiene metrado cargado (sigue funcionando con
+// % a mano en ese caso).
+function porcentajeDesdeCantidad(actividad, cantidad) {
+  if (actividad.metrado == null || actividad.metrado <= 0) {
+    return null;
+  }
+  return Math.min(100, Math.round((cantidad / actividad.metrado) * 100));
 }
 
 function scopedWhere(req, extra = {}) {
@@ -145,16 +155,26 @@ async function listActividades(req, res) {
 
   const actividades = await prisma.actividadProgramada.findMany({
     where: { subObraId },
-    include: { actividadCatalogo: true },
+    include: {
+      actividadCatalogo: true,
+      avances: { select: { cantidad: true, porcentaje: true, fecha: true, createdAt: true } },
+    },
     orderBy: { createdAt: "desc" },
   });
 
-  return res.json({ actividades });
+  return res.json({
+    actividades: actividades.map(({ avances, ...actividad }) => ({
+      ...actividad,
+      porcentaje: porcentajeActividad({ avances }),
+      cantidadActual: cantidadActividad({ avances }),
+    })),
+  });
 }
 
 async function createActividad(req, res) {
   const subObraId = Number(req.params.id);
-  const { actividadCatalogoId, actividadCatalogoNombre, fechaInicioPlan, fechaFinPlan } = req.body;
+  const { actividadCatalogoId, actividadCatalogoNombre, fechaInicioPlan, fechaFinPlan, metrado, precioUnitario } =
+    req.body;
 
   const subObra = await prisma.subObra.findFirst({
     where: scopedWhere(req, { id: subObraId }),
@@ -196,6 +216,8 @@ async function createActividad(req, res) {
       actividadCatalogoId: catalogoId,
       fechaInicioPlan: parseFechaHora(fechaInicioPlan),
       fechaFinPlan: parseFechaHora(fechaFinPlan),
+      metrado: metrado != null && metrado !== "" ? Number(metrado) : null,
+      precioUnitario: precioUnitario != null && precioUnitario !== "" ? Number(precioUnitario) : null,
     },
     include: { actividadCatalogo: true },
   });
@@ -208,7 +230,7 @@ const ESTADOS_VALIDOS = ["PENDIENTE", "EN_CURSO", "HECHA"];
 async function updateActividad(req, res) {
   const subObraId = Number(req.params.id);
   const actividadId = Number(req.params.actividadId);
-  const { urgente, estado, fechaInicioPlan, fechaFinPlan } = req.body;
+  const { urgente, estado, fechaInicioPlan, fechaFinPlan, metrado, precioUnitario } = req.body;
 
   const subObra = await prisma.subObra.findFirst({
     where: scopedWhere(req, { id: subObraId }),
@@ -235,6 +257,8 @@ async function updateActividad(req, res) {
     urgente: typeof urgente === "boolean" ? urgente : undefined,
     fechaInicioPlan: fechaInicioPlan ? parseFechaHora(fechaInicioPlan) : undefined,
     fechaFinPlan: fechaFinPlan ? parseFechaHora(fechaFinPlan) : undefined,
+    metrado: metrado != null && metrado !== "" ? Number(metrado) : undefined,
+    precioUnitario: precioUnitario != null && precioUnitario !== "" ? Number(precioUnitario) : undefined,
   };
 
   if (estado != null) {
@@ -265,15 +289,16 @@ function contarDiasProgramados(actividad) {
   return Math.max(1, dias);
 }
 
-// Marcar un dia de la actividad como hecho: registra el avance de ese
-// dia puntual (con evidencia opcional) repartiendo el 100% entre la
-// cantidad de dias que dura la actividad. Cuando ya se marcaron todos
-// sus dias, la actividad completa pasa a HECHA con la hora real de
-// cierre de ese ultimo dia.
+// Marcar un dia de la actividad como hecho. Si la actividad tiene
+// metrado cargado, el % sale de la cantidad acumulada informada (no del
+// conteo de dias) y se completa cuando esa cantidad llega al metrado.
+// Si no tiene metrado, se mantiene el reparto viejo: 100% repartido
+// entre la cantidad de dias que dura la actividad, completa cuando se
+// marcaron todos.
 async function cerrarActividad(req, res) {
   const subObraId = Number(req.params.id);
   const actividadId = Number(req.params.actividadId);
-  const { fecha, descripcion, imagenUrl } = req.body;
+  const { fecha, descripcion, imagenUrl, cantidad } = req.body;
 
   if (!fecha) {
     return res.status(400).json({ message: "fecha es obligatoria" });
@@ -299,11 +324,27 @@ async function cerrarActividad(req, res) {
     return res.status(404).json({ message: "Actividad no encontrada" });
   }
 
-  const totalDias = contarDiasProgramados(actividad);
-  const diasMarcados = new Set(actividad.avances.map((a) => a.fecha.toISOString().slice(0, 10)));
-  diasMarcados.add(fecha);
-  const completa = diasMarcados.size >= totalDias;
-  const porcentaje = Math.min(100, Math.round((diasMarcados.size / totalDias) * 100));
+  const usaMetrado = actividad.metrado != null && actividad.metrado > 0;
+
+  let porcentaje;
+  let completa;
+  let cantidadGuardada = null;
+
+  if (usaMetrado) {
+    if (cantidad == null || cantidad === "") {
+      return res.status(400).json({ message: "cantidad es obligatoria para esta actividad (tiene metrado)" });
+    }
+    cantidadGuardada = Number(cantidad);
+    porcentaje = porcentajeDesdeCantidad(actividad, cantidadGuardada);
+    completa = porcentaje >= 100;
+  } else {
+    const totalDias = contarDiasProgramados(actividad);
+    const diasMarcados = new Set(actividad.avances.map((a) => a.fecha.toISOString().slice(0, 10)));
+    diasMarcados.add(fecha);
+    completa = diasMarcados.size >= totalDias;
+    porcentaje = Math.min(100, Math.round((diasMarcados.size / totalDias) * 100));
+  }
+
   const fechaCierre = completa ? new Date(`${fecha}T${new Date().toISOString().slice(11, 19)}Z`) : null;
 
   const [avance, actividadActualizada] = await prisma.$transaction([
@@ -312,6 +353,7 @@ async function cerrarActividad(req, res) {
         subObraId,
         actividadProgramadaId: actividadId,
         fecha: new Date(fecha),
+        cantidad: cantidadGuardada,
         porcentaje,
         descripcion: descripcion || null,
         imagenes: imagenUrl ? [imagenUrl] : [],
@@ -348,7 +390,7 @@ async function listAvances(req, res) {
 
 async function createAvance(req, res) {
   const subObraId = Number(req.params.id);
-  const { titulo, descripcion, porcentaje, imagenes, actividadProgramadaId, fecha } = req.body;
+  const { titulo, descripcion, porcentaje, cantidad, imagenes, actividadProgramadaId, fecha } = req.body;
 
   if (!fecha) {
     return res.status(400).json({ message: "fecha es obligatoria" });
@@ -359,13 +401,26 @@ async function createAvance(req, res) {
     return res.status(404).json({ message: "Sub-obra no encontrada" });
   }
 
+  let actividad = null;
   if (actividadProgramadaId != null) {
-    const actividad = await prisma.actividadProgramada.findFirst({
+    actividad = await prisma.actividadProgramada.findFirst({
       where: { id: Number(actividadProgramadaId), subObraId },
     });
     if (!actividad) {
       return res.status(404).json({ message: "Actividad programada no encontrada en esta sub-obra" });
     }
+  }
+
+  const usaMetrado = actividad && actividad.metrado != null && actividad.metrado > 0;
+  let cantidadGuardada = null;
+  let porcentajeGuardado = porcentaje != null ? Number(porcentaje) : 0;
+
+  if (usaMetrado) {
+    if (cantidad == null || cantidad === "") {
+      return res.status(400).json({ message: "cantidad es obligatoria para esta actividad (tiene metrado)" });
+    }
+    cantidadGuardada = Number(cantidad);
+    porcentajeGuardado = porcentajeDesdeCantidad(actividad, cantidadGuardada);
   }
 
   const avance = await prisma.avance.create({
@@ -375,7 +430,8 @@ async function createAvance(req, res) {
       fecha: new Date(fecha),
       titulo: titulo || null,
       descripcion,
-      porcentaje: porcentaje != null ? Number(porcentaje) : 0,
+      cantidad: cantidadGuardada,
+      porcentaje: porcentajeGuardado,
       imagenes: Array.isArray(imagenes) ? imagenes : [],
       creadoPorId: req.user.id,
     },

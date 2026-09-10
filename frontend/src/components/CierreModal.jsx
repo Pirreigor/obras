@@ -15,8 +15,12 @@ function contarDiasProgramados(actividad) {
 }
 
 function CierreModal({ actividad, fecha, onClose, onCerrado }) {
+  const usaMetrado = actividad.metrado != null;
+  const unidad = actividad.actividadCatalogo?.unidad || "";
+
   const [descripcion, setDescripcion] = useState("");
   const [archivo, setArchivo] = useState(null);
+  const [cantidad, setCantidad] = useState(usaMetrado ? String(actividad.cantidadActual ?? 0) : "");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
   const [avisoEvidencia, setAvisoEvidencia] = useState("");
@@ -24,7 +28,10 @@ function CierreModal({ actividad, fecha, onClose, onCerrado }) {
   const totalDias = contarDiasProgramados(actividad);
   const diasMarcados = new Set((actividad.avances || []).map((a) => a.fecha.slice(0, 10)));
   diasMarcados.add(fecha);
-  const porcentajeResultante = Math.min(100, Math.round((diasMarcados.size / totalDias) * 100));
+
+  const porcentajeResultante = usaMetrado
+    ? Math.min(100, Math.round((Number(cantidad || 0) / actividad.metrado) * 100))
+    : Math.min(100, Math.round((diasMarcados.size / totalDias) * 100));
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -48,7 +55,12 @@ function CierreModal({ actividad, fecha, onClose, onCerrado }) {
         `/api/sub-obras/${actividad.subObra.id}/actividades/${actividad.id}/cerrar`,
         {
           method: "POST",
-          body: JSON.stringify({ fecha, descripcion: descripcion || undefined, imagenUrl }),
+          body: JSON.stringify({
+            fecha,
+            descripcion: descripcion || undefined,
+            imagenUrl,
+            cantidad: usaMetrado ? cantidad : undefined,
+          }),
         }
       );
       onCerrado(data);
@@ -64,7 +76,7 @@ function CierreModal({ actividad, fecha, onClose, onCerrado }) {
       <p className="muted">
         {actividad.subObra.nombre} &middot; {fecha}
       </p>
-      {totalDias > 1 && (
+      {!usaMetrado && totalDias > 1 && (
         <p className="muted">
           Esta actividad dura {totalDias} dias. Con esta marca llega a {porcentajeResultante}%
           {porcentajeResultante >= 100 ? " y se cierra." : "."}
@@ -73,6 +85,23 @@ function CierreModal({ actividad, fecha, onClose, onCerrado }) {
       {error && <div className="form-error">{error}</div>}
       {avisoEvidencia && <div className="form-error">{avisoEvidencia}</div>}
       <form className="stacked-form" onSubmit={handleSubmit}>
+        {usaMetrado && (
+          <div className="field">
+            <label htmlFor="cierreCantidad">Cantidad acumulada ({unidad || "unidad"}) de {actividad.metrado}</label>
+            <input
+              id="cierreCantidad"
+              type="number"
+              min="0"
+              step="0.01"
+              value={cantidad}
+              onChange={(e) => setCantidad(e.target.value)}
+              required
+            />
+            <p className="muted">
+              Esto equivale a {porcentajeResultante}%{porcentajeResultante >= 100 ? " y cierra la actividad." : "."}
+            </p>
+          </div>
+        )}
         <div className="field">
           <label htmlFor="cierreComentario">Comentario (opcional)</label>
           <input id="cierreComentario" value={descripcion} onChange={(e) => setDescripcion(e.target.value)} />
@@ -91,6 +120,8 @@ function CierreModal({ actividad, fecha, onClose, onCerrado }) {
             ? "Guardando..."
             : porcentajeResultante >= 100
             ? "Marcar como completada (100%)"
+            : usaMetrado
+            ? `Guardar avance (${porcentajeResultante}%)`
             : `Marcar este dia (${porcentajeResultante}%)`}
         </button>
       </form>

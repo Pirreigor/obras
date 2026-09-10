@@ -265,6 +265,12 @@ model ActividadProgramada {
   fechaCierreReal     DateTime?
   estado              EstadoActividad   @default(PENDIENTE)
   urgente             Boolean           @default(false)
+  // Metrado (cantidad total planificada, en la unidad de
+  // actividadCatalogo.unidad) y precio unitario opcionales: cuando estan
+  // cargados, el avance se registra en cantidad (no en % a mano) y el %
+  // y la valorizacion ($) se calculan solos.
+  metrado             Float?
+  precioUnitario      Float?
 
   registrosDiarios RegistroDiario[]
   avances          Avance[]
@@ -301,6 +307,11 @@ model Avance {
   fecha                 DateTime
   titulo                String?
   descripcion           String?
+  // Cantidad acumulada (no incremental) en la unidad de la partida,
+  // cuando la actividad tiene metrado cargado. porcentaje se sigue
+  // guardando siempre (calculado a partir de cantidad/metrado cuando
+  // aplica), para no romper todo lo que ya lo consume.
+  cantidad              Float?
   porcentaje            Int                  @default(0)
   imagenes              String[]             @default([])
   creadoPorId           Int?

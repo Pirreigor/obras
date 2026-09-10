@@ -9,9 +9,24 @@ const ACTIVIDAD_FORM_INICIAL = {
   actividadCatalogoNombre: "",
   fechaInicioPlan: "",
   fechaFinPlan: "",
+  metrado: "",
+  precioUnitario: "",
 };
 
 const ESTADOS = ["PENDIENTE", "EN_CURSO", "HECHA"];
+
+function formatMetrado(actividad) {
+  if (actividad.metrado == null) return "-";
+  const unidad = actividad.actividadCatalogo?.unidad || "";
+  const actual = actividad.cantidadActual ?? 0;
+  return `${actual} / ${actividad.metrado} ${unidad}`.trim();
+}
+
+function formatValorizacion(actividad) {
+  if (actividad.metrado == null || actividad.precioUnitario == null) return "-";
+  const actual = actividad.cantidadActual ?? 0;
+  return (actual * actividad.precioUnitario).toLocaleString();
+}
 
 // Se formatea a partir del string ISO literal (no via Date) para no
 // depender del huso horario del navegador, igual que en CalendarioPanel.
@@ -106,6 +121,8 @@ function ActividadesModal({ subObra, puedeCrear, puedeMarcarUrgente, onClose }) 
       const body = {
         fechaInicioPlan: form.fechaInicioPlan || undefined,
         fechaFinPlan: form.fechaFinPlan || undefined,
+        metrado: form.metrado || undefined,
+        precioUnitario: form.precioUnitario || undefined,
       };
       if (form.actividadCatalogoId === NUEVA) {
         if (!form.actividadCatalogoNombre.trim()) {
@@ -166,6 +183,8 @@ function ActividadesModal({ subObra, puedeCrear, puedeMarcarUrgente, onClose }) 
                 <th>Actividad</th>
                 <th>Plan inicio</th>
                 <th>Plan fin</th>
+                <th>Metrado</th>
+                <th>Valorizacion</th>
                 <th>Estado</th>
                 <th>Cierre real</th>
                 <th>Urgente</th>
@@ -178,6 +197,8 @@ function ActividadesModal({ subObra, puedeCrear, puedeMarcarUrgente, onClose }) 
                   <td>{actividad.actividadCatalogo?.nombre}</td>
                   <td>{formatFechaHora(actividad.fechaInicioPlan)}</td>
                   <td>{formatFechaHora(actividad.fechaFinPlan)}</td>
+                  <td>{formatMetrado(actividad)}</td>
+                  <td>{formatValorizacion(actividad)}</td>
                   <td>
                     {puedeMarcarUrgente ? (
                       <select
@@ -287,6 +308,40 @@ function ActividadesModal({ subObra, puedeCrear, puedeMarcarUrgente, onClose }) 
                 onChange={(e) => setForm({ ...form, fechaFinPlan: e.target.value })}
               />
             </div>
+
+            <div className="field">
+              <label htmlFor="actividadMetrado">
+                Metrado (opcional{form.actividadCatalogoId && form.actividadCatalogoId !== NUEVA
+                  ? `, ${catalogo.find((c) => String(c.id) === String(form.actividadCatalogoId))?.unidad || ""}`
+                  : ""}
+                )
+              </label>
+              <input
+                id="actividadMetrado"
+                type="number"
+                min="0"
+                step="0.01"
+                placeholder="Cantidad total planificada"
+                value={form.metrado}
+                onChange={(e) => setForm({ ...form, metrado: e.target.value })}
+              />
+            </div>
+
+            <div className="field">
+              <label htmlFor="actividadPrecioUnitario">Precio unitario (opcional)</label>
+              <input
+                id="actividadPrecioUnitario"
+                type="number"
+                min="0"
+                step="0.01"
+                value={form.precioUnitario}
+                onChange={(e) => setForm({ ...form, precioUnitario: e.target.value })}
+              />
+            </div>
+            <p className="muted">
+              Si cargas un metrado, el avance de esta actividad se va a registrar en cantidad (no en %) y el sistema
+              calcula el % y la valorizacion solo.
+            </p>
 
             <button className="btn-primary" type="submit" disabled={submitting}>
               {submitting ? "Creando..." : "Crear actividad"}

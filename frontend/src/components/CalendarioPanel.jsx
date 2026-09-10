@@ -90,8 +90,21 @@ function AvanceForm({ fecha, actividades, subObras, onSaved, onError }) {
   const [nuevaSubObraId, setNuevaSubObraId] = useState("");
   const [nuevaActividadNombre, setNuevaActividadNombre] = useState("");
   const [porcentaje, setPorcentaje] = useState("");
+  const [cantidad, setCantidad] = useState("");
   const [descripcion, setDescripcion] = useState("");
   const [submitting, setSubmitting] = useState(false);
+
+  const actividadSeleccionada = actividades.find((a) => String(a.id) === String(actividadProgramadaId));
+  const usaMetrado = actividadSeleccionada?.metrado != null;
+  const unidad = actividadSeleccionada?.actividadCatalogo?.unidad || "";
+  const porcentajePreview =
+    usaMetrado && cantidad !== "" ? Math.min(100, Math.round((Number(cantidad) / actividadSeleccionada.metrado) * 100)) : null;
+
+  function handleSeleccionarActividad(id) {
+    setActividadProgramadaId(id);
+    const actividad = actividades.find((a) => String(a.id) === String(id));
+    setCantidad(actividad?.metrado != null ? String(actividad.cantidadActual ?? 0) : "");
+  }
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -114,8 +127,7 @@ function AvanceForm({ fecha, actividades, subObras, onSaved, onError }) {
         actividadId = creada.actividad.id;
         subObraId = nuevaSubObraId;
       } else if (actividadProgramadaId) {
-        const actividad = actividades.find((a) => String(a.id) === String(actividadProgramadaId));
-        subObraId = actividad.subObra.id;
+        subObraId = actividadSeleccionada.subObra.id;
       } else {
         throw new Error("Elegi una actividad");
       }
@@ -125,11 +137,13 @@ function AvanceForm({ fecha, actividades, subObras, onSaved, onError }) {
         body: JSON.stringify({
           actividadProgramadaId: actividadId,
           fecha,
-          porcentaje: porcentaje || 0,
+          porcentaje: usaMetrado ? undefined : porcentaje || 0,
+          cantidad: usaMetrado ? cantidad : undefined,
           descripcion: descripcion || undefined,
         }),
       });
       setPorcentaje("");
+      setCantidad("");
       setDescripcion("");
       setActividadProgramadaId("");
       setNuevaSubObraId("");
@@ -149,7 +163,7 @@ function AvanceForm({ fecha, actividades, subObras, onSaved, onError }) {
         <select
           id="avanceActividad"
           value={actividadProgramadaId}
-          onChange={(e) => setActividadProgramadaId(e.target.value)}
+          onChange={(e) => handleSeleccionarActividad(e.target.value)}
           required
         >
           <option value="">Selecciona una actividad</option>
@@ -192,17 +206,33 @@ function AvanceForm({ fecha, actividades, subObras, onSaved, onError }) {
         </>
       )}
 
-      <div className="field">
-        <label htmlFor="avancePorcentaje">Porcentaje completado</label>
-        <input
-          id="avancePorcentaje"
-          type="number"
-          min="0"
-          max="100"
-          value={porcentaje}
-          onChange={(e) => setPorcentaje(e.target.value)}
-        />
-      </div>
+      {usaMetrado ? (
+        <div className="field">
+          <label htmlFor="avanceCantidad">Cantidad acumulada ({unidad || "unidad"})</label>
+          <input
+            id="avanceCantidad"
+            type="number"
+            min="0"
+            step="0.01"
+            value={cantidad}
+            onChange={(e) => setCantidad(e.target.value)}
+            required
+          />
+          {porcentajePreview != null && <p className="muted">Esto equivale a {porcentajePreview}%.</p>}
+        </div>
+      ) : (
+        <div className="field">
+          <label htmlFor="avancePorcentaje">Porcentaje completado</label>
+          <input
+            id="avancePorcentaje"
+            type="number"
+            min="0"
+            max="100"
+            value={porcentaje}
+            onChange={(e) => setPorcentaje(e.target.value)}
+          />
+        </div>
+      )}
       <div className="field">
         <label htmlFor="avanceDescripcion">Comentario</label>
         <input id="avanceDescripcion" value={descripcion} onChange={(e) => setDescripcion(e.target.value)} />
@@ -535,7 +565,10 @@ function DetalleDia({ fecha, programadas, avances, subObras, actividades, onSave
           <div className="vista-checklist">
             {avances.map((a) => (
               <div key={a.id} className="muted">
-                {a.actividad.subObra.nombre} &middot; {a.actividad.actividadCatalogo?.nombre} &mdash; {a.porcentaje}%
+                {a.actividad.subObra.nombre} &middot; {a.actividad.actividadCatalogo?.nombre} &mdash;{" "}
+                {a.cantidad != null
+                  ? `${a.cantidad} ${a.actividad.actividadCatalogo?.unidad || ""} (${a.porcentaje}%)`
+                  : `${a.porcentaje}%`}
                 {a.descripcion ? `: ${a.descripcion}` : ""}
               </div>
             ))}
@@ -563,6 +596,8 @@ function NuevaActividadModal({ subObras, fechaSugerida, onClose, onCreada }) {
   const [actividadCatalogoNombre, setActividadCatalogoNombre] = useState("");
   const [fechaInicioPlan, setFechaInicioPlan] = useState(`${fechaSugerida}T08:00`);
   const [fechaFinPlan, setFechaFinPlan] = useState(`${fechaSugerida}T17:00`);
+  const [metrado, setMetrado] = useState("");
+  const [precioUnitario, setPrecioUnitario] = useState("");
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
@@ -581,7 +616,12 @@ function NuevaActividadModal({ subObras, fechaSugerida, onClose, onCreada }) {
     }
     setSubmitting(true);
     try {
-      const body = { fechaInicioPlan: fechaInicioPlan || undefined, fechaFinPlan: fechaFinPlan || undefined };
+      const body = {
+        fechaInicioPlan: fechaInicioPlan || undefined,
+        fechaFinPlan: fechaFinPlan || undefined,
+        metrado: metrado || undefined,
+        precioUnitario: precioUnitario || undefined,
+      };
       if (actividadCatalogoId === NUEVA) {
         if (!actividadCatalogoNombre.trim()) {
           throw new Error("Falta el nombre de la actividad nueva");
@@ -668,6 +708,31 @@ function NuevaActividadModal({ subObras, fechaSugerida, onClose, onCreada }) {
             type="datetime-local"
             value={fechaFinPlan}
             onChange={(e) => setFechaFinPlan(e.target.value)}
+          />
+        </div>
+
+        <div className="field">
+          <label htmlFor="nuevaActMetrado">Metrado (opcional)</label>
+          <input
+            id="nuevaActMetrado"
+            type="number"
+            min="0"
+            step="0.01"
+            placeholder="Cantidad total planificada"
+            value={metrado}
+            onChange={(e) => setMetrado(e.target.value)}
+          />
+        </div>
+
+        <div className="field">
+          <label htmlFor="nuevaActPrecioUnitario">Precio unitario (opcional)</label>
+          <input
+            id="nuevaActPrecioUnitario"
+            type="number"
+            min="0"
+            step="0.01"
+            value={precioUnitario}
+            onChange={(e) => setPrecioUnitario(e.target.value)}
           />
         </div>
 
